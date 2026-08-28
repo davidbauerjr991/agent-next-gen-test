@@ -239,7 +239,6 @@ import {
   CircleAlert,
   Home,
   Settings,
-  Info,
   type LucideIcon,
 } from "lucide-react";
 
