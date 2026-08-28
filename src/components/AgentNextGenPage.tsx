@@ -4071,83 +4071,41 @@ export function AgentNextGenPage({
     },
   });
   // Per explicit request ("make the page headers that are fixed at the
-  // top scroll out of view (make any tabs sticky to the top) when the
-  // page scrolls down and then if the user scrolls up the header
-  // animates back down into view? Test it on the Home container
-  // first"): tracks scroll DIRECTION (not just position) on the Home
-  // panel's own dashboard body (the `overflow-y-auto` div below, only
-  // rendered while `activeDeskTab === "home"`) so the panel's own
-  // `ContainerHeader` (see the docked `renderHeaderControls` render
-  // further down) can hide itself on scroll-down and reappear on
-  // scroll-up — the same "collapsing app bar" pattern most mobile
-  // browsers/apps use. A small dead zone (±4px) avoids flapping on
-  // trackpad micro-jitter, and scrolling back within 8px of the top
-  // always force-shows the header regardless of direction, so it's
-  // never stuck hidden right at the top of the page. Gated to
-  // `activePanelKey === "home"` at the render site below — other
-  // panels (and Home's own non-"home" desk tabs, e.g. Customers,
-  // which scroll a different element entirely) are untouched for now,
-  // per the "test it on the Home container first" request; a panel
-  // whose `headerContent` (tabs) should stay sticky/visible while the
-  // title/actions row above it hides is a follow-up once this reads
-  // well here.
-  const [homeHeaderHidden, setHomeHeaderHidden] = useState(false);
+  // top scroll out of view ... test it on the Home container first"),
+  // simplified per a direct follow-up ("I want the page header in home
+  // to basically be not fixed, then when scrolled back up make it
+  // fixed") after an earlier measured-height collapse attempt worked
+  // but was slow to land and more machinery than this needed. Rather
+  // than animating the real header's own height to 0 in place, the
+  // header now simply lives INSIDE the Home dashboard's own scrollable
+  // body (see `homeContent`'s `body`, the first child of the
+  // `overflow-y-auto` div below) as a normal, non-fixed, in-flow
+  // element — scrolling down carries it away exactly like any other
+  // content on the page, no JS or height measurement involved.
+  // `homeStickyHeaderVisible` instead controls a separate, small
+  // "fixed" duplicate header (absolutely positioned over the panel —
+  // see `primaryPanelView` below) that slides in only while the user is
+  // scrolling UP and not already near the top (where the in-flow
+  // header is already visible on its own), and slides back out on
+  // scroll-down or once back near the top. Gated to
+  // `activePanelKey === "home"` at both render sites — other panels
+  // (and Home's own non-"home" desk tabs, e.g. Customers, which scroll
+  // a different element entirely) are untouched, per the original
+  // "test it on the Home container first" request.
+  const [homeStickyHeaderVisible, setHomeStickyHeaderVisible] = useState(false);
   const homeScrollTopRef = useRef(0);
   const handleHomeDashboardScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const top = e.currentTarget.scrollTop;
     const delta = top - homeScrollTopRef.current;
     if (top < 8) {
-      setHomeHeaderHidden(false);
+      setHomeStickyHeaderVisible(false);
     } else if (delta > 4) {
-      setHomeHeaderHidden(true);
+      setHomeStickyHeaderVisible(false);
     } else if (delta < -4) {
-      setHomeHeaderHidden(false);
+      setHomeStickyHeaderVisible(true);
     }
     homeScrollTopRef.current = top;
   };
-  // First attempt at collapsing the header used a CSS-only
-  // grid-template-rows (`0fr`/`1fr`) trick — no JS height measurement
-  // needed, in theory. It didn't work: `ContainerHeader` (lyra-ui,
-  // container-header.tsx) bakes its own internal `min-h-10` floor into
-  // an inner title row that this component's `className` prop can't
-  // reach, and a `fr` track's implicit minimum sizing is `auto` (at
-  // least the content's min-content size) regardless of the `0fr`
-  // flex factor — so the row always settled at that internal floor
-  // (~73px) instead of truly reaching 0. Per this app's own standing
-  // rule, that internal floor isn't something to fork/hack around.
-  // This measured-height approach sidesteps it entirely: an
-  // explicit pixel `height` (not `auto`/`fr`) plus `overflow: hidden`
-  // on the OUTER wrapper clips the header completely regardless of
-  // what it would otherwise insist on, since an explicit height
-  // always wins over a clipped descendant's own min-content size.
-  const [homeHeaderHeight, setHomeHeaderHeight] = useState(0);
-  const homeHeaderObserverRef = useRef<ResizeObserver | null>(null);
-  // Callback ref (not a bare `useRef`) so the observer correctly
-  // re-attaches if this exact DOM node is ever swapped — e.g.
-  // switching between the docked/float `sharedPanel` variant and this
-  // same wrapper's other instance in `primaryPanelView` (only one of
-  // the two is ever mounted at a time, but which one can change at
-  // runtime once an interaction starts/ends). Measures the INNER
-  // (always-natural-height) div, never the outer one whose height
-  // this same state drives — measuring the outer div would create a
-  // feedback loop where collapsing it also corrupts the recorded
-  // "open" height.
-  const setHomeHeaderRef = useCallback((node: HTMLDivElement | null) => {
-    if (homeHeaderObserverRef.current) {
-      homeHeaderObserverRef.current.disconnect();
-      homeHeaderObserverRef.current = null;
-    }
-    if (node) {
-      setHomeHeaderHeight(node.getBoundingClientRect().height);
-      const ro = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          setHomeHeaderHeight(entry.contentRect.height);
-        }
-      });
-      ro.observe(node);
-      homeHeaderObserverRef.current = ro;
-    }
-  }, []);
 
   // Home — per explicit request, this now holds the exact dashboard
   // content that used to render directly as this page's default main
@@ -4318,6 +4276,12 @@ export function AgentNextGenPage({
                   className="flex flex-1 flex-col min-w-0 overflow-y-auto px-6 py-6 animate-in fade-in-0 duration-200"
                   onScroll={handleHomeDashboardScroll}
                 >
+                  {/* In-flow, non-fixed header — see `handleHomeDashboardScroll`'s
+                      own doc comment. Deliberately plain (no icon/actions/badge:
+                      `homeContent` itself never sets any), and rendered here
+                      rather than in the panel chrome above so it scrolls away
+                      with the rest of this content instead of staying pinned. */}
+                  <ContainerHeader className="min-h-[54px] py-4 -mx-6 px-6 mb-2" title="Home" />
                   <div className="w-full max-w-[1200px] mx-auto lyra-container-grid-wrap">
                     {showPageHeader && (
                       /* Home identity row — per explicit follow-up ("revert the header to
@@ -5082,71 +5046,43 @@ export function AgentNextGenPage({
       )}
       renderHeaderControls={({ gripProps, dockButtonProps, dockIcon, variant: dVariant }) => (
         <>
-          {/* Per explicit request ("make the page headers that are fixed
-              at the top scroll out of view ... test it on the Home
-              container first"): collapses this ContainerHeader by
-              animating an explicit, MEASURED pixel height rather than a
-              CSS-only grid-template-rows trick (see `homeHeaderHeight`'s
-              own doc comment, near `homeContent`, for why that first
-              attempt didn't actually reach 0). `setHomeHeaderRef` measures
-              the INNER div's natural height; the OUTER div's explicit
-              `height`/`overflow: hidden` is what actually clips it.
-              Gated to `activePanelKey === "home"` — every other panel
-              still renders this header exactly as before, fully open,
-              regardless of `homeHeaderHidden`'s value. */}
-          <div
-            style={{
-              height: activePanelKey === "home" && homeHeaderHidden ? 0 : homeHeaderHeight || undefined,
-              overflow: "hidden",
-              transition: "height 300ms ease-in-out",
-            }}
-          >
-            <div
-              ref={setHomeHeaderRef}
-              style={{
-                opacity: activePanelKey === "home" && homeHeaderHidden ? 0 : 1,
-                transition: "opacity 200ms ease-in-out",
-              }}
-            >
-              <ContainerHeader
-                className={cn("min-h-[54px]", activePanelKey === "search" ? "pt-4 pb-0" : "py-4")}
-                title={activePanelContent.title}
-                titleBadge={activePanelContent.titleBadge}
-                titleClassName={activePanelContent.titleClassName ?? "lyra-heading-lg"}
-                icon={
-                  dVariant === "float"
-                    ? <div {...gripProps}><GripVertical className="h-4 w-4" strokeWidth={1.5} /></div>
-                    : activePanelContent.dockedIcon
-                }
-                bordered={!activePanelContent.headerContent}
-                actions={
-                  <>
-                    {activePanelContent.headerActions}
-                    <Tooltip content="Full Screen" placement="bottom" asLabel>
-                      <ActionIconButton
-                        aria-label="Full Screen"
-                        size="sm"
-                        onClick={() => setPanelFullScreen(true)}
-                        className="text-lyra-fg-secondary hover:text-lyra-fg-secondary"
-                      >
-                        <Maximize2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-                      </ActionIconButton>
-                    </Tooltip>
-                    <Tooltip content={dockButtonProps["aria-label"]} placement="bottom" asLabel>
-                      <ActionIconButton
-                        {...dockButtonProps}
-                        size="sm"
-                        className="text-lyra-fg-secondary hover:text-lyra-fg-secondary"
-                      >
-                        {dockIcon}
-                      </ActionIconButton>
-                    </Tooltip>
-                  </>
-                }
-                onClose={() => setPanelOpen(false)}
-              />
-            </div>
-          </div>
+          <ContainerHeader
+            className={cn("min-h-[54px]", activePanelKey === "search" ? "pt-4 pb-0" : "py-4")}
+            title={activePanelContent.title}
+            titleBadge={activePanelContent.titleBadge}
+            titleClassName={activePanelContent.titleClassName ?? "lyra-heading-lg"}
+            icon={
+              dVariant === "float"
+                ? <div {...gripProps}><GripVertical className="h-4 w-4" strokeWidth={1.5} /></div>
+                : activePanelContent.dockedIcon
+            }
+            bordered={!activePanelContent.headerContent}
+            actions={
+              <>
+                {activePanelContent.headerActions}
+                <Tooltip content="Full Screen" placement="bottom" asLabel>
+                  <ActionIconButton
+                    aria-label="Full Screen"
+                    size="sm"
+                    onClick={() => setPanelFullScreen(true)}
+                    className="text-lyra-fg-secondary hover:text-lyra-fg-secondary"
+                  >
+                    <Maximize2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                  </ActionIconButton>
+                </Tooltip>
+                <Tooltip content={dockButtonProps["aria-label"]} placement="bottom" asLabel>
+                  <ActionIconButton
+                    {...dockButtonProps}
+                    size="sm"
+                    className="text-lyra-fg-secondary hover:text-lyra-fg-secondary"
+                  >
+                    {dockIcon}
+                  </ActionIconButton>
+                </Tooltip>
+              </>
+            }
+            onClose={() => setPanelOpen(false)}
+          />
           {activePanelContent.headerContent && (
             // `activePanelKey === "search"` skips this wrapper ENTIRELY
             // (no padding, no border) for the Search panel's tabbed
@@ -5319,40 +5255,44 @@ export function AgentNextGenPage({
     <div className="flex flex-col flex-1 overflow-hidden relative rounded-lyra-lg border border-lyra-border-subtle bg-lyra-bg-surface-base">
       {/* Per explicit request ("make the page headers that are fixed at
           the top scroll out of view ... test it on the Home container
-          first") — this is the actual default "no active interaction"
-          view (see this const's own doc comment just above), a SEPARATE
-          render path from the `sharedPanel`/`Draggable`-hosted
-          `ContainerHeader` above, which only renders once an interaction
-          is active. Same measured-height collapse, same
-          `homeHeaderHidden`/`homeHeaderHeight` state, same
-          `activePanelKey === "home"` gating — see that other instance's
-          own doc comment for the full rationale (including why the
-          first, CSS-only `grid-template-rows` attempt didn't work). */}
-      <div
-        style={{
-          height: activePanelKey === "home" && homeHeaderHidden ? 0 : homeHeaderHeight || undefined,
-          overflow: "hidden",
-          transition: "height 300ms ease-in-out",
-        }}
-      >
+          first"), simplified per a direct follow-up ("I want the page
+          header in home to basically be not fixed, then when scrolled
+          back up make it fixed") — this is the actual default "no
+          active interaction" view (see this const's own doc comment
+          just above), a SEPARATE render path from the
+          `sharedPanel`/`Draggable`-hosted `ContainerHeader`, which only
+          renders once an interaction is active (untouched by this
+          feature — see that instance's own plain, unwrapped render).
+          For every panel except Home, this renders exactly as before.
+          For Home, this slot renders nothing instead — the real header
+          now lives in-flow inside the scrollable body (see
+          `homeContent`'s own `body`) so it scrolls away normally — and
+          this small fixed/absolute duplicate slides in on top of the
+          panel only while `homeStickyHeaderVisible` is true (scrolling
+          up, not already near the top; see `handleHomeDashboardScroll`'s
+          own doc comment for the full rationale). */}
+      {activePanelKey !== "home" && (
+        <ContainerHeader
+          className={cn("min-h-[54px]", activePanelKey === "search" ? "pt-4 pb-0" : "py-4")}
+          title={activePanelContent.title}
+          titleBadge={activePanelContent.titleBadge}
+          titleClassName={activePanelContent.titleClassName ?? "lyra-heading-lg"}
+          icon={activePanelContent.dockedIcon}
+          bordered={!activePanelContent.headerContent}
+          actions={activePanelContent.headerActions}
+        />
+      )}
+      {activePanelKey === "home" && (
         <div
-          ref={setHomeHeaderRef}
+          className="absolute top-0 left-0 right-0 z-10 bg-lyra-bg-surface-base shadow-md"
           style={{
-            opacity: activePanelKey === "home" && homeHeaderHidden ? 0 : 1,
-            transition: "opacity 200ms ease-in-out",
+            transform: homeStickyHeaderVisible ? "translateY(0)" : "translateY(-100%)",
+            transition: "transform 200ms ease-in-out",
           }}
         >
-          <ContainerHeader
-            className={cn("min-h-[54px]", activePanelKey === "search" ? "pt-4 pb-0" : "py-4")}
-            title={activePanelContent.title}
-            titleBadge={activePanelContent.titleBadge}
-            titleClassName={activePanelContent.titleClassName ?? "lyra-heading-lg"}
-            icon={activePanelContent.dockedIcon}
-            bordered={!activePanelContent.headerContent}
-            actions={activePanelContent.headerActions}
-          />
+          <ContainerHeader className="min-h-[54px] py-4" title="Home" />
         </div>
-      </div>
+      )}
       {activePanelContent.headerContent && (
         activePanelKey === "search" ? (
           activePanelContent.headerContent
