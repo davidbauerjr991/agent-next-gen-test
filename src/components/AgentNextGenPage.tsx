@@ -4253,10 +4253,6 @@ export function AgentNextGenPage({
                       subtitle, right-aligned actions) since it no longer needs
                       `PageHeader`'s pinned/bordered "record header" semantics. */
                       <div className="mb-6 flex items-start justify-between gap-4">
-                        <div className="flex flex-col justify-center min-w-0">
-                        <h1 className="lyra-heading-lg text-lyra-fg-default truncate min-w-0">{`Agent ${CURRENT_AGENT_FIRST_NAME} ${CURRENT_AGENT_LAST_NAME}`}</h1>
-                        <span className="lyra-body-sm text-lyra-fg-secondary truncate">{`User Name: ${CURRENT_AGENT_ID}`}</span>
-                        </div>
                       {
                         // Per explicit request ("add a chip to the top
                         // right (where the Assignments Completed today
@@ -4353,6 +4349,10 @@ export function AgentNextGenPage({
                           )}
                         </div>
                       }
+                        <div className="flex flex-col justify-center min-w-0">
+                        <h1 className="lyra-heading-lg text-lyra-fg-default truncate min-w-0">{`Agent ${CURRENT_AGENT_FIRST_NAME} ${CURRENT_AGENT_LAST_NAME}`}</h1>
+                        <span className="lyra-body-sm text-lyra-fg-secondary truncate">{`User Name: ${CURRENT_AGENT_ID}`}</span>
+                        </div>
                       </div>
                     )}
                     {/* ── Queue widgets ──
