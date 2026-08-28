@@ -102,7 +102,6 @@ import {
 import {
   type Thread,
   type Interaction,
-  buildNavItems,
   type AssignmentSortValue,
   sortAssignments,
   AssignmentsSectionCaption,
@@ -184,6 +183,7 @@ import {
   Headphones,
   ChevronRight,
   CircleAlert,
+  Home,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -1422,6 +1422,7 @@ export function AgentNextGenPage({
      but left in the shared demo since it's still a real, valid caller of
      that hook). */
   type PanelKey =
+    | "home"
     | "notif"
     | "conversations"
     | "schedule"
@@ -1649,6 +1650,12 @@ export function AgentNextGenPage({
   // DEFAULT on load — an agent can still pin it back from that menu, which
   // then persists for the rest of the session same as any other app.
   const [pinnedKeys, setPinnedKeys] = useState<Record<PanelKey, boolean>>({
+    // Per explicit request: Home moved here from its own standalone LeftNav
+    // rail item, pinned to start (persistent header icon on load) and
+    // first in `PANEL_KEY_INITIAL_ORDER` below — same relocation pattern
+    // Settings went through just before it, just pinned instead of
+    // unpinned since Home is the default/primary view.
+    home: true,
     // Notifications/Schedule swapped per explicit follow-up ("move the
     // notifications into the app menu list unpinned and pin the Schedule
     // so it is visible when the app loads") — Notifications no longer
@@ -3999,6 +4006,10 @@ export function AgentNextGenPage({
     },
   });
   const contentByPanelKey: Record<PanelKey, EmbeddablePanelContent> = {
+    // Never actually rendered — `handlePanelButtonClick` below
+    // short-circuits "home" before `activePanelKey` is ever set to it, so
+    // this entry only exists to satisfy this Record type's completeness.
+    home: blankPanelContent("Home"),
     notif: notifContent,
     conversations: blankPanelContent("Agent Chat"),
     schedule: scheduleContent,
@@ -4037,6 +4048,18 @@ export function AgentNextGenPage({
   // itself never resizes, repositions, or re-animates open+close, only its
   // title/body content does.
   const handlePanelButtonClick = (key: PanelKey) => () => {
+    // "Home" isn't real panel content — it's the same "go back to the
+    // dashboard" action the old LeftNav Home rail item performed directly
+    // (`switchActiveInteraction(null)`). Per explicit request it moved into
+    // this same apps system for its header-icon/"View All Apps" presentation
+    // (pinned, first), but clicking it still just clears the active
+    // interaction — it deliberately never opens/becomes shared-panel
+    // content, and leaves whatever panel is already open untouched, same as
+    // every other direct `switchActiveInteraction(null)` caller elsewhere.
+    if (key === "home") {
+      switchActiveInteraction(null);
+      return;
+    }
     if (panelOpen && activePanelKey === key) {
       setPanelOpen(false);
       return;
@@ -4068,6 +4091,7 @@ export function AgentNextGenPage({
   // which keeps using the specialized `NotificationsBell` component (badge
   // count, its own portal, etc.) for that one button.
   const PANEL_KEY_METADATA: Record<PanelKey, { label: string; icon: LucideIcon }> = {
+    home: { label: "Home", icon: Home },
     notif: { label: "Notifications", icon: Bell },
     conversations: { label: "Agent Chat", icon: MessageSquare },
     schedule: { label: "Schedule", icon: CalendarDays },
@@ -4080,7 +4104,7 @@ export function AgentNextGenPage({
     settings: { label: "Settings", icon: Settings },
   };
   const PANEL_KEY_INITIAL_ORDER: PanelKey[] = [
-    "search", "customers", "accounts", "tickets", "wem",
+    "home", "search", "customers", "accounts", "tickets", "wem",
     "screenpop", "conversations", "schedule", "notif", "settings",
   ];
   // Live, user-reorderable order for both the header icon row AND the "View
@@ -4127,7 +4151,7 @@ export function AgentNextGenPage({
       // condition — whichever app currently owns the shared panel gets the
       // same blue "active" row treatment here (MenuRadixItem's `item.active`
       // branch) that its header icon gets.
-      active: panelOpen && activePanelKey === key,
+      active: key === "home" ? !activeInteraction : (panelOpen && activePanelKey === key),
       onClick: handlePanelButtonClick(key),
       // Selecting an app should just switch the shared panel to it, the
       // same way clicking its header icon would — not also close this
@@ -4681,7 +4705,7 @@ export function AgentNextGenPage({
             <div ref={headerIconsMeasureRef} className="flex items-center gap-0">
               {panelOrder.filter(showHeaderIcon).map((key) => {
                 const { label, icon: KeyIcon } = PANEL_KEY_METADATA[key];
-                const isActive = panelOpen && activePanelKey === key;
+                const isActive = key === "home" ? !activeInteraction : (panelOpen && activePanelKey === key);
                 return (
                   <div
                     key={key}
@@ -4767,10 +4791,11 @@ export function AgentNextGenPage({
       <div ref={bodyContainerRef} className="flex flex-1 min-h-0 overflow-hidden">
 
         <LeftNav
-          items={buildNavItems(
-            Boolean(activeInteraction),
-            () => switchActiveInteraction(null)
-          )}
+          // Per explicit request: Home moved out of this rail too — same
+          // as Settings before it — into the shared apps system (pinned,
+          // first; see PANEL_KEY_METADATA/PANEL_KEY_INITIAL_ORDER above).
+          // Nothing lives in this rail anymore.
+          items={[]}
           open={navOpen}
           onToggle={() => setNavOpen((v) => !v)}
           overlay={isNavNarrow}

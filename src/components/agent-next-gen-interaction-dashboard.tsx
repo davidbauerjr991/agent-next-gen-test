@@ -6,7 +6,6 @@
 import { useState } from "react";
 import {
   type ChannelType,
-  type NavItem,
   Tooltip,
   Popover,
   RadioGroup,
@@ -33,7 +32,6 @@ import {
 } from "@/components/agent-next-gen-shared-utils";
 import { cn } from "@/lib/utils";
 import {
-  Home,
   ArrowUpDown,
   ChevronsDownUp,
   ChevronsUpDown,
@@ -476,33 +474,14 @@ export function interactionHasBreachedSla(interaction: Interaction, clockTick: n
 }
 
 /* ── Left nav items ──
-   Built from whether an interaction is currently active (see
-   `activeInteraction` below) rather than a static array, so "Home" (the
-   rail item — still routes to the Desk dashboard) stops showing as active —
-   and becomes clickable to navigate back — the moment an assignment takes
-   over the main content area.
-
-   Settings used to sit here too, as a second plain rail item below Home —
-   per explicit request ("move Settings from the left nav to be an item in
-   the app menu, treat it like any of the other apps"), it moved out
-   entirely into the shared "apps" panel system instead (`PanelKey`/
-   `PANEL_KEY_METADATA`/`contentByPanelKey`, each page's own file) — the
-   same mechanism Search/Customers/WEM/etc. already use. This rail is just
-   Home now. */
-
-export function buildNavItems(
-  hasActiveInteraction: boolean,
-  onDeskClick: () => void
-): NavItem[] {
-  return [
-    {
-      icon: <Home className="h-4 w-4" strokeWidth={1.5} />,
-      label: "Home",
-      active: !hasActiveInteraction,
-      onClick: onDeskClick,
-    },
-  ];
-}
+   Used to build the rail's Home/Settings items from here. Per explicit
+   request, both moved out — Settings first, then Home right after it —
+   into the shared "apps" panel system instead (`PanelKey`/
+   `PANEL_KEY_METADATA`/`contentByPanelKey`/`PANEL_KEY_INITIAL_ORDER`, each
+   page's own file), the same mechanism Search/Customers/WEM/etc. already
+   use: Home pinned and first, Settings unpinned, both reachable/pinnable
+   from "View All Apps" like any other app. LeftNav's own `items` prop is
+   now just `[]` at every call site — nothing lives in this rail anymore. */
 
 /* ── Assignments sort ──
    "Last Updated" ranks each assignment by its most recently added/touched
@@ -669,18 +648,17 @@ export function AssignmentsExpandCollapseAllButton({
    see that call site's own comment for "New Outbound"'s own back-and-forth
    on where it landed before settling back here), with the list of
    InteractionNavItem cards below it — both this caption and the cards
-   passed together as `header`. The Home rail (just Home now — Settings
-   moved out into the shared "apps" panel system, see `buildNavItems`'s own
-   doc comment) renders LAST (LeftNav's default, non-`itemsFirst` order),
-   sticky to the BOTTOM of the scroll region instead of the top, so this
-   caption + the cards are what scrolls, not the rail. `count` is
+   passed together as `header`. LeftNav's own icon rail (`items`) is empty
+   now — Home and Settings both moved out into the shared "apps" panel
+   system (see the "Left nav items" comment above) — so this caption + the
+   cards are the entire scrollable region below "New Outbound", with
+   nothing sticky pinned below them any more. `count` is
    `interactions.length`, the exact same live list the cards render from,
    so the two numbers can't drift apart. Collapsed to icon-only rail
    (`expanded` false), the text has nowhere to go — but the sort button is
    a real standalone action, not just a label, so it stays reachable as a
-   lone icon directly below Home (the `items` rail button above it) rather
-   than disappearing along with the text the way the rest of this caption
-   does.
+   lone icon on its own rather than disappearing along with the text the
+   way the rest of this caption does.
 
    Sort button only shows once there's actually something to sort — with
    zero or one assignment there's only one possible order either way, so
