@@ -4726,7 +4726,11 @@ export function AgentWorkspaceAdvancedPage({
   // closing — `handlePanelButtonClick` never clears `activePanelKey`, only
   // `panelOpen`) so this doesn't stay "true" for a panel that's actually
   // closed.
-  const isCombinedPanelMode = isNavNarrow && panelOpen && panelVariant === "docked" && !!activePanelContent;
+  // Requires an active interaction too, per explicit request: without one,
+  // the panel IS the primary view (`primaryPanelView`, below) — there's no
+  // separate "main" region left to toggle against, so the narrow-mode
+  // main/panel switch no longer applies in that state.
+  const isCombinedPanelMode = isNavNarrow && panelOpen && panelVariant === "docked" && !!activePanelContent && !!activeInteraction;
   const mainRegionTabLabel = activeInteraction
     ? `${activeInteraction.customerName ?? "Customer"} (${activeInteraction.customerId})`
     : "Home";
@@ -4739,7 +4743,11 @@ export function AgentWorkspaceAdvancedPage({
   // title/body content does.
   const handlePanelButtonClick = (key: PanelKey) => () => {
     if (panelOpen && activePanelKey === key) {
-      setPanelOpen(false);
+      // Without an active interaction, this panel IS the primary view (see
+      // `primaryPanelView`'s own doc comment) — there's nothing behind it
+      // to reveal, so closing is disabled; re-clicking the already-active
+      // icon is a no-op instead of leaving the screen blank.
+      if (activeInteraction) setPanelOpen(false);
       return;
     }
     if (!panelOpen) {
@@ -5247,6 +5255,47 @@ export function AgentWorkspaceAdvancedPage({
             {activePanelContent.headerContent}
           </div>
         ))
+      )}
+      <div className="flex flex-col flex-1 min-h-0">{activePanelContent.body}</div>
+    </div>
+  ) : null;
+
+  // The primary view when there's no active interaction — per explicit
+  // request, the main content container (`<Container>`, above) is removed
+  // entirely in that state rather than sitting alongside/behind an empty
+  // "Nothing here yet" placeholder; whichever app panel is open (Home, by
+  // default — see `panelOpen`/`activePanelKey`/`panelFullScreen`'s own
+  // initial state, above) simply fills this whole space directly instead.
+  // Deliberately its own render path, not a reuse of `sharedPanel`/
+  // `sharedPanelFullScreenOverlay` above: those come with Full Screen/
+  // Undock/Close header actions that make sense only once there's a real
+  // interaction underneath to undock over, resize around, or close back
+  // down to — none of which exists here, so this skips `Draggable`
+  // entirely and renders no such actions (per explicit request, those 3
+  // icons only reappear once an interaction is active and `sharedPanel`/
+  // `sharedPanelFullScreenOverlay` take back over). `panelVariant`/
+  // `panelFullScreen` are simply ignored while this renders — nothing to
+  // dock beside or float over — and pick back up right where they were
+  // the moment an interaction starts and this view is replaced by the
+  // normal `<Container>` + `sharedPanel` pairing again.
+  const primaryPanelView = panelMounted && activePanelContent ? (
+    <div className="flex flex-col flex-1 overflow-hidden relative rounded-lyra-lg border border-lyra-border-subtle bg-lyra-bg-surface-base">
+      <ContainerHeader
+        title={activePanelContent.title}
+        titleBadge={activePanelContent.titleBadge}
+        titleClassName={activePanelContent.titleClassName}
+        icon={activePanelContent.dockedIcon}
+        bordered={!activePanelContent.headerContent}
+        actions={activePanelContent.headerActions}
+      />
+      {activePanelContent.headerContent && (
+        activePanelKey === "search" ? (
+          activePanelContent.headerContent
+        ) : (
+          <div className="shrink-0 px-4 pb-3 border-b border-lyra-border-subtle">
+            {activePanelContent.headerContent}
+          </div>
+        )
       )}
       <div className="flex flex-col flex-1 min-h-0">{activePanelContent.body}</div>
     </div>
@@ -5912,7 +5961,8 @@ export function AgentWorkspaceAdvancedPage({
               `AgentNextGenTemplate.stories.tsx`'s reference layout, just
               with `isCombinedPanelMode`'s own stacking preserved unchanged
               one level in. */}
-          <Container className="flex flex-col flex-1 overflow-hidden relative">
+          {activeInteraction ? (
+<Container className="flex flex-col flex-1 overflow-hidden relative">
 
             {/* Row: Customer Information panel (left) + everything else
                 (tab row + content column, stacked). Not flattened into
@@ -5968,7 +6018,7 @@ export function AgentWorkspaceAdvancedPage({
                     isCombinedPanelMode && narrowActiveRegion !== "main" && "hidden"
                   )}
                 >
-              {activeInteraction ? (
+              {(
                 // ── Active interaction's detail page — replaces the Desk
                 // dashboard the moment a new assignment is started/quick-
                 // dialed/redialed (see `activeInteraction` above). Just the
@@ -7011,17 +7061,6 @@ export function AgentWorkspaceAdvancedPage({
                       </div>
                   </div>
                 </div>
-              ) : (
-                <div className="flex flex-1 flex-col min-w-0 overflow-hidden items-center justify-center">
-                  {/* Home used to render its full dashboard directly here as the
-                      app's default main view. Per explicit request it's now a real
-                      panel entry instead (see `homeContent`, above, and
-                      `PANEL_KEY_METADATA`/`panelFullScreen`'s initial
-                      `useState(true)` — Home defaults to open, full screen, on
-                      load) — this fallback only ever shows if that panel gets
-                      closed with no interaction active. */}
-                  <p className="lyra-body-md text-lyra-fg-disabled text-center">Nothing here yet.</p>
-                </div>
               )}
             </div>
 
@@ -7290,12 +7329,15 @@ export function AgentWorkspaceAdvancedPage({
             </div>
 
           </Container>
+        ) : (
+          primaryPanelView
+        )}
 
           {/* Shared single-container panel — float (CSS transitions, not
               keyframe animations — avoids compositor fill-mode flash).
               Was five near-identical blocks (one per panel); with only one
               physical container now, there's only one. */}
-          {panelVariant === "float" && panelMounted && !panelFullScreen && (
+          {activeInteraction && panelVariant === "float" && panelMounted && !panelFullScreen && (
             <div
               style={{
                 ...getPanelFloatStyle(),
@@ -7321,7 +7363,7 @@ export function AgentWorkspaceAdvancedPage({
               `sharedPanel`, above) for why this bypasses `Draggable`
               entirely instead of trying to stretch its "float" variant to
               cover the container. */}
-          {sharedPanelFullScreenOverlay}
+          {activeInteraction && sharedPanelFullScreenOverlay}
 
         </div>
 
@@ -7363,7 +7405,7 @@ export function AgentWorkspaceAdvancedPage({
             still exactly what they get back the moment there's room for it
             again (window widened, LeftNav collapsed, panel re-opened after
             being closed). */}
-        {panelVariant === "docked" && !isCombinedPanelMode && !panelFullScreen && (() => {
+        {activeInteraction && panelVariant === "docked" && !isCombinedPanelMode && !panelFullScreen && (() => {
           const dockedPanelRenderWidth = Math.min(panelWidth, maxDockedWidthForMainFloor);
           return (
         <div className="flex h-full pb-3" style={{
