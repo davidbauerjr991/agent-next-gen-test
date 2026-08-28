@@ -5162,6 +5162,49 @@ export function AgentWorkspace2WithDeskPage({
     }
     homeScrollTopRef.current = top;
   };
+  // First attempt at collapsing the header used a CSS-only
+  // grid-template-rows (`0fr`/`1fr`) trick — no JS height measurement
+  // needed, in theory. It didn't work: `ContainerHeader` (lyra-ui,
+  // container-header.tsx) bakes its own internal `min-h-10` floor into
+  // an inner title row that this component's `className` prop can't
+  // reach, and a `fr` track's implicit minimum sizing is `auto` (at
+  // least the content's min-content size) regardless of the `0fr`
+  // flex factor — so the row always settled at that internal floor
+  // (~73px) instead of truly reaching 0. Per this app's own standing
+  // rule, that internal floor isn't something to fork/hack around.
+  // This measured-height approach sidesteps it entirely: an
+  // explicit pixel `height` (not `auto`/`fr`) plus `overflow: hidden`
+  // on the OUTER wrapper clips the header completely regardless of
+  // what it would otherwise insist on, since an explicit height
+  // always wins over a clipped descendant's own min-content size.
+  const [homeHeaderHeight, setHomeHeaderHeight] = useState(0);
+  const homeHeaderObserverRef = useRef<ResizeObserver | null>(null);
+  // Callback ref (not a bare `useRef`) so the observer correctly
+  // re-attaches if this exact DOM node is ever swapped — e.g.
+  // switching between the docked/float `sharedPanel` variant and this
+  // same wrapper's other instance in `primaryPanelView` (only one of
+  // the two is ever mounted at a time, but which one can change at
+  // runtime once an interaction starts/ends). Measures the INNER
+  // (always-natural-height) div, never the outer one whose height
+  // this same state drives — measuring the outer div would create a
+  // feedback loop where collapsing it also corrupts the recorded
+  // "open" height.
+  const setHomeHeaderRef = useCallback((node: HTMLDivElement | null) => {
+    if (homeHeaderObserverRef.current) {
+      homeHeaderObserverRef.current.disconnect();
+      homeHeaderObserverRef.current = null;
+    }
+    if (node) {
+      setHomeHeaderHeight(node.getBoundingClientRect().height);
+      const ro = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          setHomeHeaderHeight(entry.contentRect.height);
+        }
+      });
+      ro.observe(node);
+      homeHeaderObserverRef.current = ro;
+    }
+  }, []);
 
   // Home — per explicit request, this now holds the exact dashboard
   // content that used to render directly as this page's default main
@@ -6231,27 +6274,29 @@ export function AgentWorkspace2WithDeskPage({
         <>
           {/* Per explicit request ("make the page headers that are fixed
               at the top scroll out of view ... test it on the Home
-              container first"): collapses this ContainerHeader via a
-              CSS-only grid-template-rows animation (`0fr`/`1fr` — a
-              standard "auto-height collapse" trick that needs no JS
-              height measurement, unlike an `overflow:hidden`
-              `max-height` transition) paired with an opacity fade, both
-              driven by `homeHeaderHidden` (see that state's own doc
-              comment, near `homeContent`, for the scroll-tracking side).
+              container first"): collapses this ContainerHeader by
+              animating an explicit, MEASURED pixel height rather than a
+              CSS-only grid-template-rows trick (see `homeHeaderHeight`'s
+              own doc comment, near `homeContent`, for why that first
+              attempt didn't actually reach 0). `setHomeHeaderRef` measures
+              the INNER div's natural height; the OUTER div's explicit
+              `height`/`overflow: hidden` is what actually clips it.
               Gated to `activePanelKey === "home"` — every other panel
               still renders this header exactly as before, fully open,
               regardless of `homeHeaderHidden`'s value. */}
           <div
-            className={cn(
-              "grid overflow-hidden transition-[grid-template-rows] duration-300 ease-in-out",
-              activePanelKey === "home" && homeHeaderHidden ? "grid-rows-[0fr]" : "grid-rows-[1fr]"
-            )}
+            style={{
+              height: activePanelKey === "home" && homeHeaderHidden ? 0 : homeHeaderHeight || undefined,
+              overflow: "hidden",
+              transition: "height 300ms ease-in-out",
+            }}
           >
             <div
-              className={cn(
-                "min-h-0 transition-opacity duration-200 ease-in-out",
-                activePanelKey === "home" && homeHeaderHidden ? "opacity-0" : "opacity-100"
-              )}
+              ref={setHomeHeaderRef}
+              style={{
+                opacity: activePanelKey === "home" && homeHeaderHidden ? 0 : 1,
+                transition: "opacity 200ms ease-in-out",
+              }}
             >
               <ContainerHeader
                 className={cn("min-h-[54px]", activePanelKey === "search" ? "pt-4 pb-0" : "py-4")}
@@ -6465,15 +6510,42 @@ export function AgentWorkspace2WithDeskPage({
   // normal `<Container>` + `sharedPanel` pairing again.
   const primaryPanelView = panelMounted && activePanelContent ? (
     <div className="flex flex-col flex-1 overflow-hidden relative rounded-lyra-lg border border-lyra-border-subtle bg-lyra-bg-surface-base">
-      <ContainerHeader
-        className={cn("min-h-[54px]", activePanelKey === "search" ? "pt-4 pb-0" : "py-4")}
-        title={activePanelContent.title}
-        titleBadge={activePanelContent.titleBadge}
-        titleClassName={activePanelContent.titleClassName ?? "lyra-heading-lg"}
-        icon={activePanelContent.dockedIcon}
-        bordered={!activePanelContent.headerContent}
-        actions={activePanelContent.headerActions}
-      />
+      {/* Per explicit request ("make the page headers that are fixed at
+          the top scroll out of view ... test it on the Home container
+          first") — this is the actual default "no active interaction"
+          view (see this const's own doc comment just above), a SEPARATE
+          render path from the `sharedPanel`/`Draggable`-hosted
+          `ContainerHeader` above, which only renders once an interaction
+          is active. Same measured-height collapse, same
+          `homeHeaderHidden`/`homeHeaderHeight` state, same
+          `activePanelKey === "home"` gating — see that other instance's
+          own doc comment for the full rationale (including why the
+          first, CSS-only `grid-template-rows` attempt didn't work). */}
+      <div
+        style={{
+          height: activePanelKey === "home" && homeHeaderHidden ? 0 : homeHeaderHeight || undefined,
+          overflow: "hidden",
+          transition: "height 300ms ease-in-out",
+        }}
+      >
+        <div
+          ref={setHomeHeaderRef}
+          style={{
+            opacity: activePanelKey === "home" && homeHeaderHidden ? 0 : 1,
+            transition: "opacity 200ms ease-in-out",
+          }}
+        >
+          <ContainerHeader
+            className={cn("min-h-[54px]", activePanelKey === "search" ? "pt-4 pb-0" : "py-4")}
+            title={activePanelContent.title}
+            titleBadge={activePanelContent.titleBadge}
+            titleClassName={activePanelContent.titleClassName ?? "lyra-heading-lg"}
+            icon={activePanelContent.dockedIcon}
+            bordered={!activePanelContent.headerContent}
+            actions={activePanelContent.headerActions}
+          />
+        </div>
+      </div>
       {activePanelContent.headerContent && (
         activePanelKey === "search" ? (
           activePanelContent.headerContent
