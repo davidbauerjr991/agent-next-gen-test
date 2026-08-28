@@ -4112,6 +4112,35 @@ export function AgentWorkspaceAdvancedPage({
   // exact content on load, just inside the panel chrome instead of bare.
   const homeContent: EmbeddablePanelContent = {
     title: "Home",
+    // Per explicit request: the Personal Queue toggle moved here from the
+    // dashboard's own PageHeader `actions` (see that header's own doc
+    // comment, in `body` below) — now sits inline right after "Home"
+    // itself (`ContainerHeader`'s real, documented `titleBadge` prop:
+    // "rendered inline immediately after the title"), instead of
+    // right-aligned opposite it.
+    titleBadge: (
+<Tooltip content="Toggle Assignment Panel" placement="bottom" asLabel>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setNavOpen((v) => !v)}
+                              className={cn(
+                                "h-6 shrink-0 gap-0.5 rounded-lyra-md px-2 lyra-body-md-emphasis",
+                                hasBreachedSlaAssignment
+                                  ? "bg-lyra-status-critical-subtle text-lyra-status-critical-strong hover:bg-lyra-status-critical-subtle hover:opacity-80"
+                                  : interactions.length > 0
+                                  ? "bg-lyra-status-warning-subtle text-lyra-status-warning-strong hover:bg-lyra-status-warning-subtle hover:opacity-80"
+                                  : "bg-lyra-status-success-subtle text-lyra-status-success-strong hover:bg-lyra-status-success-subtle hover:opacity-80"
+                              )}
+                            >
+                              Personal Queue: {interactions.length > 0 ? interactions.length : "Empty"}
+                              {hasBreachedSlaAssignment && (
+                                <CircleAlert className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" />
+                              )}
+                              <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" />
+                            </Button>
+                          </Tooltip>
+    ),
     body: (
 <div key="dashboard" className="flex flex-1 flex-col min-w-0 overflow-hidden animate-in fade-in-0 duration-200">
                   {showPageHeader && (
@@ -4157,96 +4186,21 @@ export function AgentWorkspaceAdvancedPage({
                     // `AgentDashboardHeader` layout (same change already
                     // made to 2.0/Premium — see either file's own doc
                     // comment): title dropped the "Agent " prefix, subhead
-                    // label changed from "Agent ID:" to "User Name:". Per a
-                    // later explicit follow-up ("float the personal queue
-                    // chip to the right for premium and advanced too"), the
-                    // chip is back in `actions` (the header's far right,
-                    // vertically centered) rather than lyra-ui's own
-                    // `titleSuffix`-inline placement — this header keeps
-                    // the real `PageHeader` component (unlike 2.0's
-                    // identical header, which stopped using `PageHeader`
-                    // entirely per its own separate explicit follow-up —
-                    // see that file's own doc comment, §119), so floating
-                    // the chip right is just `actions`, `PageHeader`'s own
-                    // built-in slot for exactly that.
+                    // label changed from "Agent ID:" to "User Name:" (that
+                    // subhead is gone now too, removed per a later explicit
+                    // request). The Personal Queue chip that used to float
+                    // in `actions` here has moved to `homeContent.titleBadge`
+                    // instead, inline right after "Home" — see that doc
+                    // comment, above.
                     <PageHeader
                       title={`Agent ${CURRENT_AGENT_FIRST_NAME} ${CURRENT_AGENT_LAST_NAME}`}
-                      subtitle={`User Name: ${CURRENT_AGENT_ID}`}
                       actions={
-                        // Per explicit request ("add a chip to the top
-                        // right (where the Assignments Completed today
-                        // used to be) that says '{N} Active Assignments'
-                        // and when clicked open the left rail") — this
-                        // is the exact spot the `SHOW_RESOLVED_TODAY_CHIP`-
-                        // gated Badge used to occupy (still hidden, see
-                        // that flag's own doc comment, agent-next-gen-
-                        // shared-utils.ts). Unlike that static badge,
-                        // this one is a real `Button` (Rule zero — no
-                        // hand-rolled `<button>`), styled to read as a
-                        // chip via the same `bg-lyra-status-*-subtle`/
-                        // `text-lyra-status-*-strong` pairing other info
-                        // callouts in this file already use as plain
-                        // classNames (not just inline style).
-                        // `interactions.length` is the exact same count
-                        // `AssignmentsSectionCaption` below renders as
-                        // "({count})" for the LeftNav's own caption —
-                        // one live number, two places it shows up.
-                        // `setNavOpen((v) => !v)` toggles the LeftNav
-                        // rail (its 52px/256px collapsed/expanded states
-                        // — see `navOpen`'s own declaration) exactly like
-                        // clicking its own collapse/expand toggle would.
-                        //
-                        // Label reads "Personal Queue: {N}", "Empty" in
-                        // place of a bare "0" once the queue has nothing
-                        // in it. The chip's color reflects the queue's
-                        // own worst-case state — success (green) once
-                        // genuinely empty, warning (amber) once it holds
-                        // any assignment at all, escalating to critical
-                        // (red) the moment ANY assignment has actually
-                        // breached SLA (not just nearing it) — same
-                        // success/warning/critical three-tier language
-                        // `getAwaitingSeverity`/the record-header channel
-                        // tab's own escalation already use, rolled up
-                        // across the whole queue. `hasBreachedSlaAssignment`
-                        // (declared alongside `clockTick` above) drives
-                        // both the red tier and the trailing `CircleAlert`
-                        // "!" mark — the same icon `ChannelTab` (lyra-ui,
-                        // channel-row.tsx) already reserves for a
-                        // genuinely breached (not just late) channel.
-                        //
-                        // Per explicit follow-up ("move connection lag
-                        // time / connect agent leg below Personal Queue
-                        // chip in all 3"), the tri-state agent-leg
-                        // indicator (Connect Agent Leg link/Connecting.../
-                        // Connection Lag Time) moved out of the subtitle
-                        // line and down here instead, stacked directly
-                        // under the chip in this same `actions` slot —
-                        // `flex-col items-end` right-aligns both under one
-                        // another instead of the row's normal side-by-side
-                        // layout.
-                        <div className="flex flex-col items-end gap-1">
-                          <Tooltip content="Toggle Assignment Panel" placement="bottom" asLabel>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setNavOpen((v) => !v)}
-                              className={cn(
-                                "h-6 shrink-0 gap-0.5 rounded-lyra-md px-2 lyra-body-md-emphasis",
-                                hasBreachedSlaAssignment
-                                  ? "bg-lyra-status-critical-subtle text-lyra-status-critical-strong hover:bg-lyra-status-critical-subtle hover:opacity-80"
-                                  : interactions.length > 0
-                                  ? "bg-lyra-status-warning-subtle text-lyra-status-warning-strong hover:bg-lyra-status-warning-subtle hover:opacity-80"
-                                  : "bg-lyra-status-success-subtle text-lyra-status-success-strong hover:bg-lyra-status-success-subtle hover:opacity-80"
-                              )}
-                            >
-                              Personal Queue: {interactions.length > 0 ? interactions.length : "Empty"}
-                              {hasBreachedSlaAssignment && (
-                                <CircleAlert className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" />
-                              )}
-                              <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" />
-                            </Button>
-                          </Tooltip>
-                          {agentLegStatus === "connected" ? (
+                           // The Personal Queue chip that used to live here moved to `titleBadge`
+                           // instead, per explicit request (now sits inline right after "Home" —
+                           // see `homeContent`'s own doc comment, above) — this slot now holds
+                           // only the tri-state agent-leg indicator (Connect Agent Leg link /
+                           // Connecting... / Connection Lag Time), unchanged otherwise.
+                           agentLegStatus === "connected" ? (
                             <span className="lyra-body-sm text-lyra-fg-secondary">{`Connection Lag Time: ${CURRENT_AGENT_CONNECTION_LAG_TIME}`}</span>
                           ) : agentLegStatus === "connecting" ? (
                             <span className="lyra-body-sm text-lyra-fg-secondary">Connecting...</span>
@@ -4264,8 +4218,7 @@ export function AgentWorkspaceAdvancedPage({
                             >
                               Connect Agent Leg
                             </Button>
-                          )}
-                        </div>
+                          )
                       }
                     />
                   )}
