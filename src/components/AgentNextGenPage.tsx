@@ -4070,6 +4070,42 @@ export function AgentNextGenPage({
       hasNextRow: selectedCustomerIndex !== -1 && selectedCustomerIndex < customerSortedRows.length - 1,
     },
   });
+  // Per explicit request ("make the page headers that are fixed at the
+  // top scroll out of view (make any tabs sticky to the top) when the
+  // page scrolls down and then if the user scrolls up the header
+  // animates back down into view? Test it on the Home container
+  // first"): tracks scroll DIRECTION (not just position) on the Home
+  // panel's own dashboard body (the `overflow-y-auto` div below, only
+  // rendered while `activeDeskTab === "home"`) so the panel's own
+  // `ContainerHeader` (see the docked `renderHeaderControls` render
+  // further down) can hide itself on scroll-down and reappear on
+  // scroll-up — the same "collapsing app bar" pattern most mobile
+  // browsers/apps use. A small dead zone (±4px) avoids flapping on
+  // trackpad micro-jitter, and scrolling back within 8px of the top
+  // always force-shows the header regardless of direction, so it's
+  // never stuck hidden right at the top of the page. Gated to
+  // `activePanelKey === "home"` at the render site below — other
+  // panels (and Home's own non-"home" desk tabs, e.g. Customers,
+  // which scroll a different element entirely) are untouched for now,
+  // per the "test it on the Home container first" request; a panel
+  // whose `headerContent` (tabs) should stay sticky/visible while the
+  // title/actions row above it hides is a follow-up once this reads
+  // well here.
+  const [homeHeaderHidden, setHomeHeaderHidden] = useState(false);
+  const homeScrollTopRef = useRef(0);
+  const handleHomeDashboardScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const top = e.currentTarget.scrollTop;
+    const delta = top - homeScrollTopRef.current;
+    if (top < 8) {
+      setHomeHeaderHidden(false);
+    } else if (delta > 4) {
+      setHomeHeaderHidden(true);
+    } else if (delta < -4) {
+      setHomeHeaderHidden(false);
+    }
+    homeScrollTopRef.current = top;
+  };
+
   // Home — per explicit request, this now holds the exact dashboard
   // content that used to render directly as this page's default main
   // view (see the fallback comment further down, where that branch used
@@ -4234,7 +4270,11 @@ export function AgentNextGenPage({
                 </div>
               ) : (
                 <>
-                <div key={activeDeskTab} className="flex flex-1 flex-col min-w-0 overflow-y-auto px-6 py-6 animate-in fade-in-0 duration-200">
+                <div
+                  key={activeDeskTab}
+                  className="flex flex-1 flex-col min-w-0 overflow-y-auto px-6 py-6 animate-in fade-in-0 duration-200"
+                  onScroll={handleHomeDashboardScroll}
+                >
                   <div className="w-full max-w-[1200px] mx-auto lyra-container-grid-wrap">
                     {showPageHeader && (
                       /* Home identity row — per explicit follow-up ("revert the header to
@@ -4999,43 +5039,69 @@ export function AgentNextGenPage({
       )}
       renderHeaderControls={({ gripProps, dockButtonProps, dockIcon, variant: dVariant }) => (
         <>
-          <ContainerHeader
-            className={cn("min-h-[54px]", activePanelKey === "search" ? "pt-4 pb-0" : "py-4")}
-            title={activePanelContent.title}
-            titleBadge={activePanelContent.titleBadge}
-            titleClassName={activePanelContent.titleClassName ?? "lyra-heading-lg"}
-            icon={
-              dVariant === "float"
-                ? <div {...gripProps}><GripVertical className="h-4 w-4" strokeWidth={1.5} /></div>
-                : activePanelContent.dockedIcon
-            }
-            bordered={!activePanelContent.headerContent}
-            actions={
-              <>
-                {activePanelContent.headerActions}
-                <Tooltip content="Full Screen" placement="bottom" asLabel>
-                  <ActionIconButton
-                    aria-label="Full Screen"
-                    size="sm"
-                    onClick={() => setPanelFullScreen(true)}
-                    className="text-lyra-fg-secondary hover:text-lyra-fg-secondary"
-                  >
-                    <Maximize2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-                  </ActionIconButton>
-                </Tooltip>
-                <Tooltip content={dockButtonProps["aria-label"]} placement="bottom" asLabel>
-                  <ActionIconButton
-                    {...dockButtonProps}
-                    size="sm"
-                    className="text-lyra-fg-secondary hover:text-lyra-fg-secondary"
-                  >
-                    {dockIcon}
-                  </ActionIconButton>
-                </Tooltip>
-              </>
-            }
-            onClose={() => setPanelOpen(false)}
-          />
+          {/* Per explicit request ("make the page headers that are fixed
+              at the top scroll out of view ... test it on the Home
+              container first"): collapses this ContainerHeader via a
+              CSS-only grid-template-rows animation (`0fr`/`1fr` — a
+              standard "auto-height collapse" trick that needs no JS
+              height measurement, unlike an `overflow:hidden`
+              `max-height` transition) paired with an opacity fade, both
+              driven by `homeHeaderHidden` (see that state's own doc
+              comment, near `homeContent`, for the scroll-tracking side).
+              Gated to `activePanelKey === "home"` — every other panel
+              still renders this header exactly as before, fully open,
+              regardless of `homeHeaderHidden`'s value. */}
+          <div
+            className={cn(
+              "grid overflow-hidden transition-[grid-template-rows] duration-300 ease-in-out",
+              activePanelKey === "home" && homeHeaderHidden ? "grid-rows-[0fr]" : "grid-rows-[1fr]"
+            )}
+          >
+            <div
+              className={cn(
+                "min-h-0 transition-opacity duration-200 ease-in-out",
+                activePanelKey === "home" && homeHeaderHidden ? "opacity-0" : "opacity-100"
+              )}
+            >
+              <ContainerHeader
+                className={cn("min-h-[54px]", activePanelKey === "search" ? "pt-4 pb-0" : "py-4")}
+                title={activePanelContent.title}
+                titleBadge={activePanelContent.titleBadge}
+                titleClassName={activePanelContent.titleClassName ?? "lyra-heading-lg"}
+                icon={
+                  dVariant === "float"
+                    ? <div {...gripProps}><GripVertical className="h-4 w-4" strokeWidth={1.5} /></div>
+                    : activePanelContent.dockedIcon
+                }
+                bordered={!activePanelContent.headerContent}
+                actions={
+                  <>
+                    {activePanelContent.headerActions}
+                    <Tooltip content="Full Screen" placement="bottom" asLabel>
+                      <ActionIconButton
+                        aria-label="Full Screen"
+                        size="sm"
+                        onClick={() => setPanelFullScreen(true)}
+                        className="text-lyra-fg-secondary hover:text-lyra-fg-secondary"
+                      >
+                        <Maximize2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                      </ActionIconButton>
+                    </Tooltip>
+                    <Tooltip content={dockButtonProps["aria-label"]} placement="bottom" asLabel>
+                      <ActionIconButton
+                        {...dockButtonProps}
+                        size="sm"
+                        className="text-lyra-fg-secondary hover:text-lyra-fg-secondary"
+                      >
+                        {dockIcon}
+                      </ActionIconButton>
+                    </Tooltip>
+                  </>
+                }
+                onClose={() => setPanelOpen(false)}
+              />
+            </div>
+          </div>
           {activePanelContent.headerContent && (
             // `activePanelKey === "search"` skips this wrapper ENTIRELY
             // (no padding, no border) for the Search panel's tabbed
