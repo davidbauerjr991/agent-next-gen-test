@@ -1,0 +1,55 @@
+@import '../../lyra-ui/src/styles/lyra-tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Base resets ── */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  color: var(--lyra-color-fg-default);
+  background: var(--lyra-color-bg-surface-shell);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Theme switch fade ──
+   Toggling [data-theme] on <html> swaps every color token instantly, which reads as an
+   abrupt flash. This fallback transition smooths that swap for any element that doesn't
+   already declare its own transition (e.g. Tailwind's transition-colors utilities) —
+   those keep their own faster, more specific timing since class selectors win over `*`. */
+*, *::before, *::after {
+  transition: background-color 300ms ease, border-color 300ms ease, color 300ms ease,
+    fill 300ms ease, stroke 300ms ease, box-shadow 300ms ease;
+}
+
+/* ── Scrollbar styling ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #c1c7cd;
+  border-radius: 3px;
+}
+
+/* The record header's "Customer Information" panel-toggle button's
+   label-collapse below 400px used to live here as a CSS `@container`
+   query (`.lyra-customer-info-toggle-wrap`/`-btn`/`-label`) — per
+   explicit report it stopped firing reliably, even after several rounds
+   of review/hardening. Replaced with a plain `ResizeObserver` reading on
+   the row itself (`customerInfoToggleRowRef`/`customerInfoToggleRowWidth`,
+   AgentNextGenPage.tsx), the same pattern `ScheduleToolbar`'s own
+   `containerRef`/`isWide`/`isCompact` already uses for its Add/Day/Week
+   collapse (SchedulePanel.tsx) — an established, working precedent in
+   this exact codebase for "a component collapses based on its own
+   rendered width," not a one-off workaround. */
