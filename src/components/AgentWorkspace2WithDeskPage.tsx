@@ -2636,7 +2636,14 @@ export function AgentWorkspace2WithDeskPage({
   // container-based, and not easily repurposed). Whichever of
   // `panelVariant`'s two states was active before entering fullscreen is
   // preserved (untouched) and simply resumes when fullscreen exits.
-  const [panelFullScreen, setPanelFullScreen] = useState(false);
+  // Defaults to open — per explicit request, Home now lands full screen
+  // on load (paired with `panelOpen`/`activePanelKey` already defaulting
+  // to "home" — see those states' own doc comments). The
+  // `activeInteractionId` effect just below would otherwise immediately
+  // reset this back to false on mount (it's meant to only fire on a real
+  // navigation AWAY from Home, not on the initial render) — see that
+  // effect's own `skipInitialFullScreenReset` guard for how it avoids that.
+  const [panelFullScreen, setPanelFullScreen] = useState(true);
   // Keeps `sharedPanelFullScreenOverlay` mounted for a beat after
   // `panelFullScreen` flips back to false, so the exit transition (see
   // that overlay's own doc comment, and `fullScreenAnimTimer` below) can
@@ -2676,7 +2683,17 @@ export function AgentWorkspace2WithDeskPage({
   // sets the same `activeInteractionId`, no value change, so this effect
   // doesn't fire — see the assignment card's own `onClick` (further down),
   // which calls `setPanelFullScreen(false)` directly for that reason.
+  // Skips this effect's very first run — `activeInteractionId` "changing"
+  // from its initial value on mount shouldn't reset `panelFullScreen`,
+  // since Home now deliberately defaults to fullscreen-open (see that
+  // state's own doc comment, above); only a REAL later navigation away
+  // from Home should close it back down.
+  const skipInitialFullScreenReset = useRef(true);
   useEffect(() => {
+    if (skipInitialFullScreenReset.current) {
+      skipInitialFullScreenReset.current = false;
+      return;
+    }
     setPanelFullScreen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeInteractionId]);
@@ -5066,11 +5083,720 @@ export function AgentWorkspace2WithDeskPage({
     onAddToast: addToast,
     onOpenInteraction: handleOpenInteractionRow,
   });
+  // Home — per explicit request, this now holds the exact dashboard
+  // content that used to render directly as this page's default main
+  // view (see the fallback comment further down, where that branch used
+  // to live) — moved here verbatim, unchanged, now that Home is a real
+  // panel entry like every other app. Paired with `panelFullScreen`'s own
+  // initial `useState(true)` (below) so the agent still lands on this
+  // exact content on load, just inside the panel chrome instead of bare.
+  const homeContent: EmbeddablePanelContent = {
+    title: "Home",
+    body: (
+<div key="dashboard" className="flex flex-1 flex-col min-w-0 overflow-hidden animate-in fade-in-0 duration-200">
+                  {showPageHeader && (
+                    // Dashboard header — per explicit follow-up request,
+                    // back in this top, non-scrolling slot, above the tab
+                    // row ("I want it to be a page header" — undoing the
+                    // earlier move that sent it DOWN into the scrollable
+                    // dashboard body; see §116/BEHAVIOR.md for that whole
+                    // history). Wrapped in the same `<>...</>` fragment as
+                    // the `TabList` below since both now render in this
+                    // header slot together.
+                    //
+                    // Title/subtitle use the identity-header treatment
+                    // (title "Agent {name}", subhead "Agent ID:
+                    // {agentId}" + Connect Agent Leg link/Connecting.../
+                    // Connection Lag Time) instead of the former time-of-
+                    // day greeting ("Good {period}, {name}" + date) — per
+                    // explicit request to bring lyra-ui's "Agent Home
+                    // Dashboard" Storybook story's `greeting=false` header
+                    // into this app's real header (same change already
+                    // made to 2.0's `AgentNextGenPage.tsx` — see that
+                    // file's own doc comment for the full rationale).
+                    // `agentLegStatus` (declared above, alongside
+                    // `connectAgentLegSignal`) is a genuine live mirror of
+                    // `AgentProfile`'s own real agent-leg state, not a
+                    // demo toggle.
+                    //
+                    // No `titleSize="2xl"` override (matches lyra-ui's own
+                    // `AgentDashboardHeader`, the real pinned-header
+                    // variant, rather than `AgentDashboard`'s own inline
+                    // scrollable-body greeting, which keeps `2xl`) — this
+                    // reads at `PageHeader`'s own default size. `bordered
+                    // ={false}` IS still needed below, though: the
+                    // `TabList` immediately underneath draws its own
+                    // `border-b`, so leaving this header's default border
+                    // on would double it into two parallel lines — same
+                    // "header sits directly above an already-bordered row"
+                    // situation the interaction record header's own
+                    // `bordered={false}` (above, `recordHeaderRef` call
+                    // site) already documents.
+                    // Per explicit follow-up ("apply the agent home
+                    // dashboard header layout to agent-next-gen-v2"), the
+                    // title/subhead text matches lyra-ui's own current
+                    // `AgentDashboardHeader` layout (see that file's
+                    // `resolveGreetingContent`): the title dropped its
+                    // "Agent " prefix (plain name), the subhead label
+                    // changed from "Agent ID:" to "User Name:" (same
+                    // `CURRENT_AGENT_ID` value). Per a later explicit
+                    // follow-up ("float the personal queue chip to the
+                    // right for premium and advanced too"), the chip itself
+                    // is back in `actions` (the header's far right,
+                    // vertically centered) rather than lyra-ui's own
+                    // `titleSuffix`-inline placement — this header keeps the
+                    // real `PageHeader` component (unlike 2.0's identical
+                    // header, which stopped using `PageHeader` entirely per
+                    // its own separate explicit follow-up — see that file's
+                    // own doc comment, §119), so floating the chip right is
+                    // just `actions`, `PageHeader`'s own built-in slot for
+                    // exactly that.
+                    <>
+                    <PageHeader
+                      title={`Agent ${CURRENT_AGENT_FIRST_NAME} ${CURRENT_AGENT_LAST_NAME}`}
+                      subtitle={`User Name: ${CURRENT_AGENT_ID}`}
+                      // The `TabList` immediately below already draws its
+                      // own `border-b` — this header's own default border
+                      // would double that into two parallel lines with an
+                      // odd gap between them, same reasoning the
+                      // interaction record header's own `bordered={false}`
+                      // (above, `recordHeaderRef` call site) already
+                      // documents for the same "header sits directly above
+                      // a bordered row" situation.
+                      bordered={false}
+                      actions={
+                        // Per explicit request ("add a chip to the top
+                        // right (where the Assignments Completed today
+                        // used to be) that says '{N} Active Assignments'
+                        // and when clicked open the left rail") — this is
+                        // the exact spot the `SHOW_RESOLVED_TODAY_CHIP`-
+                        // gated Badge used to occupy (still hidden, see
+                        // that flag's own doc comment, agent-next-gen-
+                        // shared-utils.ts). Unlike that static badge, this
+                        // one is a real `Button` (Rule zero — no
+                        // hand-rolled `<button>`), styled to read as a
+                        // chip via the same `bg-lyra-status-*-subtle`/
+                        // `text-lyra-status-*-strong` pairing other info
+                        // callouts in this file already use as plain
+                        // classNames (not just inline style).
+                        // `interactions.length` is the exact same count
+                        // `AssignmentsSectionCaption` below renders as
+                        // "({count})" for the LeftNav's own caption — one
+                        // live number, two places it shows up.
+                        // `setNavOpen((v) => !v)` toggles the LeftNav
+                        // rail (its 52px/256px collapsed/expanded states
+                        // — see `navOpen`'s own declaration) exactly like
+                        // clicking its own collapse/expand toggle would.
+                        //
+                        // Label reads "Personal Queue: {N}", "Empty" in
+                        // place of a bare "0" once the queue has nothing
+                        // in it. The chip's color reflects the queue's
+                        // own worst-case state — success (green) once
+                        // genuinely empty, warning (amber) once it holds
+                        // any assignment at all, escalating to critical
+                        // (red) the moment ANY assignment has actually
+                        // breached SLA (not just nearing it) — same
+                        // success/warning/critical three-tier language
+                        // `getAwaitingSeverity`/the record-header channel
+                        // tab's own escalation already use, rolled up
+                        // across the whole queue. `hasBreachedSlaAssignment`
+                        // (declared alongside `clockTick` above) drives
+                        // both the red tier and the trailing `CircleAlert`
+                        // "!" mark — the same icon `ChannelTab` (lyra-ui,
+                        // channel-row.tsx) already reserves for a
+                        // genuinely breached (not just late) channel.
+                        //
+                        // Per explicit follow-up ("move connection lag
+                        // time / connect agent leg below Personal Queue
+                        // chip in all 3"), the tri-state agent-leg
+                        // indicator (Connect Agent Leg link/Connecting.../
+                        // Connection Lag Time) moved out of the subtitle
+                        // line and down here instead, stacked directly
+                        // under the chip in this same `actions` slot —
+                        // `flex-col items-end` right-aligns both under one
+                        // another instead of the row's normal side-by-side
+                        // layout.
+                        <div className="flex flex-col items-end gap-1">
+                          <Tooltip content="Toggle Assignment Panel" placement="bottom" asLabel>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setNavOpen((v) => !v)}
+                              className={cn(
+                                "h-6 shrink-0 gap-0.5 rounded-lyra-md px-2 lyra-body-md-emphasis",
+                                hasBreachedSlaAssignment
+                                  ? "bg-lyra-status-critical-subtle text-lyra-status-critical-strong hover:bg-lyra-status-critical-subtle hover:opacity-80"
+                                  : interactions.length > 0
+                                  ? "bg-lyra-status-warning-subtle text-lyra-status-warning-strong hover:bg-lyra-status-warning-subtle hover:opacity-80"
+                                  : "bg-lyra-status-success-subtle text-lyra-status-success-strong hover:bg-lyra-status-success-subtle hover:opacity-80"
+                              )}
+                            >
+                              Personal Queue: {interactions.length > 0 ? interactions.length : "Empty"}
+                              {hasBreachedSlaAssignment && (
+                                <CircleAlert className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" />
+                              )}
+                              <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" />
+                            </Button>
+                          </Tooltip>
+                          {agentLegStatus === "connected" ? (
+                            <span className="lyra-body-sm text-lyra-fg-secondary">{`Connection Lag Time: ${CURRENT_AGENT_CONNECTION_LAG_TIME}`}</span>
+                          ) : agentLegStatus === "connecting" ? (
+                            <span className="lyra-body-sm text-lyra-fg-secondary">Connecting...</span>
+                          ) : (
+                            // `Button` (Rule zero — no hand-rolled
+                            // `<button>`), stripped down to read as an
+                            // inline text link — same `h-auto p-0
+                            // hover:bg-transparent` pattern the record-
+                            // header's own "View Details" link-styled
+                            // `Button` uses (agent-next-gen-transcript.tsx).
+                            <Button
+                              variant="ghost"
+                              onClick={handleConnectAgentLeg}
+                              className="h-auto shrink-0 gap-0 p-0 hover:bg-transparent active:bg-transparent lyra-body-sm text-lyra-fg-link underline hover:no-underline"
+                            >
+                              Connect Agent Leg
+                            </Button>
+                          )}
+                        </div>
+                      }
+                    />
+                      <TabList
+                        overflowMenu
+                        reorderable
+                        // Filtered rather than a bare cast: `reorderable`
+                        // reports back the FULL dragged order, including any
+                        // customer tabs interspersed among the fixed ones —
+                        // only the fixed `DeskTabKey` entries are real,
+                        // persistable `deskTabOrder` state (see that state's
+                        // own doc comment); a customer tab dragged elsewhere
+                        // in the row just snaps back to its fixed
+                        // far-right position on the next render regardless
+                        // (this `TabList`'s own children are always rendered
+                        // `deskTabOrder` first, `openCustomerTabs` after —
+                        // see that state's own doc comment on why it's
+                        // deliberately never reorderable itself, per the
+                        // request's own "put it to the far right" wording).
+                        onReorder={(order) =>
+                          setDeskTabOrder(order.filter((key): key is DeskTabKey => !String(key).startsWith("customer:")))
+                        }
+                        className="px-6 bg-lyra-bg-surface-base shrink-0"
+                      >
+                        {deskTabOrder.map((key) => (
+                          <Tab key={key} active={activeDeskTab === key} onClick={() => setActiveDeskTab(key)}>
+                            {DESK_TAB_LABELS[key]}
+                          </Tab>
+                        ))}
+                        {/* Customer full-screen tabs — always after every
+                            fixed `deskTabOrder` tab, per explicit request
+                            ("put it to the far right of the tabs"). Leading
+                            `User` icon (a customer, not a fixed desk
+                            section); trailing `onRemove` uses `Tab`'s own
+                            built-in close affordance.
+                            `removeIcon` — per a later explicit follow-up
+                            request ("make the trash icons 'x' for the
+                            customer info tabs so they don't look like
+                            delete"): overrides the app-wide default
+                            `Trash2` glyph (see `removeIcon`'s own doc
+                            comment, tabs.tsx) with a plain `X` for these
+                            tabs specifically — closing one of these just
+                            stops viewing the customer, it doesn't delete
+                            anything, unlike the draft-thread tabs the
+                            trash-can convention was actually built for. */}
+                        {openCustomerTabs.map((tab) => (
+                          <Tab
+                            key={tab.id}
+                            active={activeDeskTab === tab.id}
+                            onClick={() => setActiveDeskTab(tab.id)}
+                            icon={<User className="h-4 w-4" strokeWidth={1.5} aria-hidden="true" />}
+                            onRemove={() => handleCloseCustomerTab(tab.id)}
+                            removeIcon={<X className="h-4 w-4" strokeWidth={1.5} aria-hidden="true" />}
+                            removeLabel={`Close ${tab.name}`}
+                          >
+                            {tab.name}
+                          </Tab>
+                        ))}
+                      </TabList>
+                    </>
+                  )}
+              {/* Body row: main content + interior panel */}
+              <div className="relative flex flex-1 overflow-hidden">
+              {/* Customers list view + row-info panel stay mounted across
+                  desk-tab switches (never unmounted by the `hidden` toggle
+                  below) so `CustomersListView`'s own search/sort/filters/
+                  added-filter-keys/visible-columns/pagination/row-selection
+                  state all survive navigating away to another tab and back
+                  — a plain `cond ? <CustomersListView/> : ...` would remount
+                  it fresh (and lose every one of those) each time.
+
+                  Both now live together in ONE real box (`flex flex-1
+                  overflow-hidden`, not `display:contents`) that toggles
+                  `hidden` as a whole, rather than each having its own
+                  separate visibility mechanism the way this used to be
+                  split (`CustomersListView` behind a `contents`/`hidden`
+                  wrapper, `CustomerRowInfoPanel` driven by nulling its own
+                  `row` prop instead). That split was the actual cause of a
+                  reported bug: nulling `row` on tab-switch didn't hide the
+                  panel — it told `InteriorPanel` to CLOSE, which plays its
+                  own 250ms width-close transition. Because the panel was a
+                  real flex sibling of whatever the newly-selected tab was
+                  about to show, that 250ms of shrinking width visibly
+                  reflowed the new tab's content growing to fill the space
+                  beside it — the "dashboard animating its position" bug.
+                  Removing it from layout instantly (rather than animating
+                  the panel closed) is what fixes the reported reflow — the
+                  panel's own real open/close animation still plays normally
+                  for actual same-tab closes (its header's × button, or
+                  `onRowClick` picking a different row); only navigating AWAY
+                  from this tab skips it.
+
+                  `display:none` (Tailwind's `hidden`) was the first attempt
+                  here, but it caused a SECOND, subtler bug on the way BACK
+                  in: `InteriorPanel` (inside `CustomerRowInfoPanel`) tracks
+                  its own real DOM parent's width via `ResizeObserver` to
+                  decide whether to auto-full-screen below 768px (see that
+                  component's own doc comment) — and `display:none` elements
+                  report a genuine 0×0 size to `ResizeObserver`, not just a
+                  stale old value. So the instant this wrapper went
+                  `display:none`, the observer fired with width 0, and that
+                  0 lingered as `InteriorPanel`'s last-known parent width
+                  until a NEW (necessarily asynchronous — `ResizeObserver`
+                  callbacks never run synchronously with the style change
+                  that caused them) callback caught up with the real width
+                  after switching back. For that one frame, `parentWidth`
+                  read as 0 (well under both the 1024px/768px thresholds),
+                  so `InteriorPanel` briefly rendered its full-screen/
+                  absolute-overlay layout before correcting itself back to
+                  its normal ~350-425px docked width and position — visible
+                  as the panel sliding in from full width, the left-to-right
+                  animation reported after this fix's first pass.
+
+                  `visibility:hidden` (`invisible`) + `position:absolute
+                  inset-0` was the SECOND attempt, replacing `display:none` —
+                  it still generates a real box with a real, stable size for
+                  `ResizeObserver`, fixing the bug above. But it introduced a
+                  THIRD bug: `visibility` is inherited but overridable by a
+                  descendant that sets its own explicit value — and
+                  `InteriorPanel`'s inner content div does exactly that
+                  (`style={{ visibility: open ? "visible" : "hidden" }}`,
+                  interior-panel.tsx), keyed off its OWN `open` prop, which is
+                  `row !== null` — true regardless of which desk tab is
+                  active, since `row` is just `selectedCustomerRow` now, not
+                  gated on `activeDeskTab` (see the render call site below).
+                  So `invisible` on this wrapper got silently overridden back
+                  to visible one level down, and — still `position:absolute`,
+                  so no longer competing for flex space either — the panel
+                  rendered floating on top of whatever tab WAS actually
+                  active, confirmed from a screenshot showing it overlapping
+                  the Dashboard.
+
+                  `opacity-0` (this wrapper) + `inert` (native HTML attribute,
+                  supported as a real prop since React 19 — see this file's
+                  own React version) is the fix that actually holds up:
+                  unlike `visibility`, `opacity` composites the WHOLE
+                  subtree as one flattened layer, so a descendant's own
+                  inline `opacity`/`visibility` can't punch back through a
+                  `0`-opacity ancestor the way it could with `visibility`
+                  alone. `inert` (not just `pointer-events-none`) additionally
+                  drops the entire subtree out of tab order and the
+                  accessibility tree and blocks ALL interaction, not only
+                  pointer events — the same "fully inactive but still really
+                  there, still correctly sized" result `visibility:hidden`
+                  was reaching for, just via a property children genuinely
+                  cannot override. */}
+              <div
+                className={
+                  activeDeskTab === "customers"
+                    ? "relative flex flex-1 overflow-hidden animate-in fade-in-0 duration-200"
+                    : "absolute inset-0 flex overflow-hidden opacity-0"
+                }
+                inert={activeDeskTab !== "customers"}
+              >
+                <CustomersListView
+                  onStartInteraction={(contact, channel, phone, skillId) =>
+                    handleStartCall({ contact, channel, phone, skillId })
+                  }
+                  addedFilterKeys={customerAddedFilterKeys}
+                  onAddedFilterKeysChange={setCustomerAddedFilterKeys}
+                  filterValues={customerFilterValues}
+                  onFilterValuesChange={setCustomerFilterValues}
+                  // Clicking the row that's already open (highlighted via
+                  // `openRowId`) closes `CustomerRowInfoPanel` instead of
+                  // just re-opening the same row it's already showing.
+                  onRowClick={(row) =>
+                    setSelectedCustomerRow((prev) =>
+                      prev?.contactNumber === row.contactNumber ? null : row
+                    )
+                  }
+                  searchQuery={customerSearchQuery}
+                  onSearchChange={setCustomerSearchQuery}
+                  sortKey={customerSortKey}
+                  sortDir={customerSortDir}
+                  onSort={handleCustomerSort}
+                  sortedRows={customerSortedRows}
+                  openRowId={selectedCustomerRow?.contactNumber ?? null}
+                  // Per explicit request (with screenshots) — leading
+                  // overlapping channel-icon stack instead of the "Channels"
+                  // column, Premium/Advanced only. See `leadingChannelStack`'s
+                  // own doc comment (agent-next-gen-customers-table.tsx).
+                  leadingChannelStack
+                  // Per explicit request ("add a blank column header and if
+                  // a record is open as an assignment or as a tab add an
+                  // eye icon"), Premium/Advanced only — a row is "open" if
+                  // it has a live left-nav assignment card (`interactions`,
+                  // matched on `Interaction.customerId`, the same id space
+                  // as `row.contactNumber` — see `isRowOpen`'s own doc
+                  // comment, agent-next-gen-customers-table.tsx) OR is
+                  // currently showing as one of this tier's own customer
+                  // full-screen tabs (`openCustomerTabs`, Premium-only —
+                  // each tab already carries its row's full
+                  // `CustomerListRecord`, so no id translation is needed).
+                  isRowOpen={(row) =>
+                    interactions.some((i) => i.customerId === row.contactNumber) ||
+                    openCustomerTabs.some((t) => t.row.contactNumber === row.contactNumber)
+                  }
+                />
+                <CustomerRowInfoPanel
+                  row={selectedCustomerRow}
+                  onClose={() => setSelectedCustomerRow(null)}
+                  onPrevious={() => handleCustomerRowNav(-1)}
+                  onNext={() => handleCustomerRowNav(1)}
+                  hasPrevious={selectedCustomerIndex > 0}
+                  hasNext={selectedCustomerIndex !== -1 && selectedCustomerIndex < customerSortedRows.length - 1}
+                  onStartInteraction={(contact, channel, phone, skillId) =>
+                    handleStartCall({ contact, channel, phone, skillId })
+                  }
+                  tabs={CUSTOMER_PANEL_TABS}
+                  onAddToast={addToast}
+                  onOpenFullScreenTab={handleOpenCustomerFullScreenTab}
+                  // Per explicit request ("hide the next/prev in the
+                  // customer info cards for advanced and premium in the
+                  // customer table view") — see `hidePrevNext`'s own doc
+                  // comment (agent-next-gen-customer-info-panel.tsx).
+                  hidePrevNext
+                />
+              </div>
+              {/* Customer full-screen tabs (`openCustomerTabs`, see that
+                  state's own doc comment) — same always-mounted opacity-0/
+                  inert treatment as the "customers" block just above,
+                  applied per open tab rather than once: since several can
+                  be open simultaneously and each keeps its own independent
+                  `activeTab`/draft/edit state (`CustomerFullScreenTabContent`
+                  owns all of that itself, not lifted here), switching
+                  between them must not remount either one — the exact same
+                  "why not `display:none`/`visibility:hidden`" reasoning
+                  documented at length on the "customers" block above
+                  applies identically here, just multiplied across however
+                  many tabs happen to be open. */}
+              {openCustomerTabs.map((tab) => (
+                <div
+                  key={tab.id}
+                  className={
+                    activeDeskTab === tab.id
+                      ? "relative flex flex-1 overflow-hidden animate-in fade-in-0 duration-200"
+                      : "absolute inset-0 flex overflow-hidden opacity-0"
+                  }
+                  inert={activeDeskTab !== tab.id}
+                >
+                  <CustomerFullScreenTabContent
+                    row={tab.row}
+                    tabs={CUSTOMER_PANEL_TABS}
+                    onStartInteraction={(contact, channel, phone, skillId) =>
+                      handleStartCall({ contact, channel, phone, skillId })
+                    }
+                    onAddToast={addToast}
+                    // Per explicit request ("keep the 'x' button in the top
+                    // right of the record so agents can close it there or
+                    // in the tab if they want") — same `handleCloseCustomerTab`
+                    // the tab strip's own `onRemove` already calls (see that
+                    // `Tab` call site above), so closing from either place
+                    // behaves identically.
+                    onClose={() => handleCloseCustomerTab(tab.id)}
+                  />
+                </div>
+              ))}
+              {activeDeskTab !== "customers" && !activeDeskTab.startsWith("customer:") && (activeDeskTab !== "home" ? (
+                // Accounts/Tickets/WEM — no content built yet; same
+                // "Coming soon" placeholder treatment used elsewhere in
+                // this file for in-progress tabs (e.g. the Customer
+                // History tab), rather than silently falling through to
+                // the Dashboard's own queue widgets/summary cards below.
+                // `key={activeDeskTab}` forces a fresh mount on every
+                // switch (including Accounts → Tickets, which would
+                // otherwise reuse this exact same element/position and
+                // never replay `animate-in`) — same reasoning as the
+                // top-level Settings/interaction/dashboard branches' own
+                // `key`s above.
+                //
+                // "interactions" used to be its own branch here
+                // (InteractionsListView, mounted directly), but per explicit
+                // request ("move the interactions tab to the search panel
+                // (make it the first tab) - like in 2.0 basic/advanced")
+                // that content moved to the Search panel instead (see
+                // `searchContent`'s own doc comment above) and "interactions"
+                // was removed from `deskTabOrder` — so this branch can no
+                // longer actually be reached for "interactions" specifically,
+                // same as it already couldn't for Accounts/Tickets/WEM.
+                <div key={activeDeskTab} className="flex flex-1 items-center justify-center p-4 animate-in fade-in-0 duration-200">
+                  <p className="lyra-body-md text-lyra-fg-disabled text-center">Coming soon</p>
+                </div>
+              ) : (
+                <>
+                <div key={activeDeskTab} className="flex flex-1 flex-col min-w-0 overflow-y-auto px-6 py-6 animate-in fade-in-0 duration-200">
+                  <div className="w-full max-w-[1200px] mx-auto lyra-container-grid-wrap">
+                    {/* ── Queue widgets ──
+                        `DashboardQueue` ("cards" variant, its default) —
+                        the numbers come straight from `latestContacts`
+                        (see the "Live queue simulation" state above), so
+                        they'd stay in sync with the accordion presentation
+                        of the same data if that's ever turned back on (see
+                        the note below) — and Contacts/Wait Time visibly
+                        tick/fluctuate in real time rather than sitting
+                        frozen at the same numbers forever. Clicking a
+                        widget opens the interior panel with that queue's
+                        sub-queue breakdown; the selected widget gets the
+                        "info-strong" (blue) treatment `DashboardQueue`
+                        applies on selection, driven by the controlled
+                        `selectedId`/`onSelect` pair kept in sync with the
+                        panel state. */}
+                    {/* No `mt-6` here — this is the first row in the
+                        dashboard body, and the scroll wrapper around
+                        `.lyra-container-grid-wrap` already supplies its
+                        own top spacing (`py-6` a few lines up), so an
+                        extra `mt-6` on top of that just doubled the gap
+                        between the tab bar and this row. The rows below
+                        (`ContactHistoryCard`, the summary cards) keep
+                        their own `mt-6` — they still need spacing from
+                        whatever row sits above THEM. */}
+                    <DashboardQueue
+                      items={latestContacts.map((contact) => ({
+                        id: contact.id,
+                        name: contact.name,
+                        icon: contact.icon,
+                        wait: contact.wait,
+                        skillsCount: contact.skillsCount,
+                        contactsCount: contact.contactsCount,
+                        agentsCount: contact.agentsCount,
+                      }))}
+                      selectedId={selectedQueueId}
+                      onSelect={(id) => {
+                        // Same "only one job in this shared docked slot at a
+                        // time" rule as the Contact History row's own
+                        // `onSelectEntry` above, the other direction — a
+                        // queue widget click while a Contact History entry's
+                        // summary is showing needs to actually swap the
+                        // panel over, not leave the old entry's content
+                        // sitting underneath a now-mismatched queue header.
+                        setSelectedContactHistoryEntry(null);
+                        setSelectedQueueId(id);
+                      }}
+                    />
+
+                    {/* ── Latest Cases ──
+                        Removed for now (was `DashboardQueue`'s "accordion"
+                        variant, showing the same data as expandable rows
+                        with each queue's `InteractionsTable` as content) —
+                        may come back later, so `latestContacts`,
+                        `InteractionsTable`, and the rest of the data/markup
+                        it depended on are left in place rather than deleted. */}
+
+                    <div className="mt-6">
+                      <ContactHistoryCard
+                        onSelectEntry={(entry) => {
+                          // Clicking the row that's ALREADY selected closes
+                          // the panel instead of re-opening it on itself —
+                          // same "click the already-selected one to toggle
+                          // it off" behavior `DashboardQueue`'s own
+                          // `selectedId`/`onSelect` pair documents for the
+                          // queue widgets above.
+                          if (entry.id === selectedContactHistoryEntry?.id) {
+                            setSelectedContactHistoryEntry(null);
+                            return;
+                          }
+                          // Deselect the OTHER two jobs this shared interior
+                          // panel slot can show — only one is ever relevant
+                          // at a time, same "selectedQueueId set takes
+                          // priority" convention that panel's own doc
+                          // comment already documents.
+                          setSelectedQueueId(null);
+                          setInteriorPanelOpen(false);
+                          setSelectedContactHistoryEntry(entry);
+                        }}
+                        selectedEntryId={selectedContactHistoryEntry?.id ?? null}
+                        historyByRange={contactHistoryByRange}
+                      />
+                    </div>
+
+                    {/* ── Summary cards ──
+                        Was three cards (Activity/Performance/Productivity);
+                        Activity's ring chart moved into the bottom of
+                        PerformanceBreakdownCard (Productivity) and the
+                        standalone Activity card was removed, since the ring
+                        visualized the exact same Available/Working/
+                        Unavailable data Productivity's own rows already
+                        list — one card showing it twice added nothing a
+                        single card + ring didn't already cover. */}
+                    <div className="mt-6 lyra-container-grid">
+                      <PerformanceSummaryCard />
+                      <PerformanceBreakdownCard />
+                    </div>
+                  </div>
+                </div>
+                {showInteriorPanel && (
+                  <InteriorPanel
+                    side="right"
+                    // Reuses this one docked slot for THREE different jobs
+                    // — the pre-existing "Case Details" form, the queue
+                    // drill-down, and (per explicit request)
+                    // `selectedContactHistoryEntry`'s own Contact History
+                    // row summary — rather than stacking a second right-side
+                    // panel, since only one detail view is ever relevant at
+                    // a time. `selectedQueueId` set takes priority over
+                    // `selectedContactHistoryEntry`, which in turn takes
+                    // priority over the plain `interiorPanelOpen` "Case
+                    // Details" default — same priority order in the open
+                    // condition, header, content, and footer below.
+                    open={interiorPanelOpen || Boolean(selectedQueueId) || Boolean(selectedContactHistoryEntry)}
+                    headerTitle={
+                      selectedQueueId
+                        ? latestContacts.find((c) => c.id === selectedQueueId)?.name ?? "Queue"
+                        : selectedContactHistoryEntry
+                        ? selectedContactHistoryEntry.name
+                        : "Case Details"
+                    }
+                    // "{n} Skills" for the queue drill-down (the same count
+                    // as that queue widget's own Skills metric, derived from
+                    // this exact `queueSubItems[selectedQueueId]` list) or,
+                    // per explicit follow-up request, the routing skill name
+                    // for a Contact History entry (previously the case ID —
+                    // `headerTitle` above already shows the customer's real
+                    // name, so this now surfaces a second, distinct fact
+                    // about the contact instead).
+                    headerSubhead={
+                      selectedQueueId
+                        ? `${(queueSubItems[selectedQueueId] ?? []).length} Skills`
+                        : selectedContactHistoryEntry?.skillName
+                    }
+                    onClose={() => {
+                      setInteriorPanelOpen(false);
+                      setSelectedQueueId(null);
+                      setSelectedContactHistoryEntry(null);
+                    }}
+                    // Redial/Re-open — per explicit request, these now live
+                    // here (the summary panel) instead of directly on the
+                    // Contact History row; either one reopens the contact as
+                    // a live assignment in the left nav (the row's own
+                    // previous click behavior — see `handleRedial`/
+                    // `handleReopenContactHistoryEntry`'s own doc comments),
+                    // then closes this panel since there's nothing left here
+                    // to look at once that's happened. Mutually exclusive by
+                    // channel type, per explicit request — a voice contact
+                    // (`entry.redial`) only ever gets "Redial" (starting a
+                    // literal fresh call is the only thing "reopening" a
+                    // call can mean), never "Re-open" alongside it; every
+                    // other channel type only ever gets "Re-open" (nothing
+                    // to "redial" on a chat/SMS/email/WhatsApp contact).
+                    footer={
+                      selectedContactHistoryEntry ? (
+                        selectedContactHistoryEntry.redial ? (
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              handleRedial(selectedContactHistoryEntry);
+                              setSelectedContactHistoryEntry(null);
+                            }}
+                          >
+                            <PhoneOutgoing className="h-3.5 w-3.5" strokeWidth={1.5} />
+                            Redial
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={() => {
+                              handleReopenContactHistoryEntry(selectedContactHistoryEntry);
+                              setSelectedContactHistoryEntry(null);
+                            }}
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.5} />
+                            Re-open
+                          </Button>
+                        )
+                      ) : undefined
+                    }
+                  >
+                    {selectedQueueId ? (
+                      <div className="flex flex-col">
+                        {(queueSubItems[selectedQueueId] ?? []).map((item, i) => (
+                          <div
+                            key={item.id}
+                            className={cn(
+                              "flex flex-col gap-2 px-4 py-4",
+                              i > 0 && "border-t border-lyra-border-subtle"
+                            )}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="inline-flex items-center gap-2 lyra-body-md-emphasis text-lyra-fg-default">
+                                <item.icon className="h-4 w-4 text-lyra-fg-secondary" strokeWidth={1.5} />
+                                {item.label}
+                              </span>
+                              <span className="lyra-body-sm text-lyra-fg-secondary whitespace-nowrap">
+                                {item.inQueueCount} In Queue
+                              </span>
+                            </div>
+                            <span className="inline-flex items-center gap-1 lyra-body-sm text-lyra-fg-secondary">
+                              <Clock className="h-3 w-3" strokeWidth={1.5} />
+                              Longest Wait Time: {item.wait}
+                            </span>
+                            {/* Available / Working / Unavailable agent counts for
+                                this sub-queue — same icons, colors, and order as
+                                PRODUCTIVITY_STATUS_META (Activity/Productivity
+                                cards), just rendered as compact circular Icon
+                                badges instead of a donut/bar. Each badge gets a
+                                hover tooltip spelling out what the count means,
+                                since the color/icon alone doesn't say "agents". */}
+                            <div className="flex items-center gap-3">
+                              <Tooltip content="Available Agents" placement="top">
+                                <span className="inline-flex items-center gap-1.5">
+                                  <Icon icon={CheckCircle2} size="sm" background="success" shape="circle" decorative />
+                                  <span className="lyra-body-sm-emphasis text-lyra-fg-default">{item.available}</span>
+                                </span>
+                              </Tooltip>
+                              <Tooltip content="Working Agents" placement="top">
+                                <span className="inline-flex items-center gap-1.5">
+                                  <Icon icon={CircleDot} size="sm" background="warning" shape="circle" decorative />
+                                  <span className="lyra-body-sm-emphasis text-lyra-fg-default">{item.working}</span>
+                                </span>
+                              </Tooltip>
+                              <Tooltip content="Unavailable Agents" placement="top">
+                                <span className="inline-flex items-center gap-1.5">
+                                  <Icon icon={MinusCircle} size="sm" background="critical" shape="circle" decorative />
+                                  <span className="lyra-body-sm-emphasis text-lyra-fg-default">{item.unavailable}</span>
+                                </span>
+                              </Tooltip>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : selectedContactHistoryEntry ? (
+                      <ContactHistoryEntryDetail entry={selectedContactHistoryEntry} />
+                    ) : (
+                      <div className="flex flex-col gap-4 px-4 py-4">
+                        <Input label="Subject" placeholder="Enter subject" />
+                        <Input label="Priority" placeholder="Select priority" />
+                        <Input label="Assignee" placeholder="Search agents" />
+                        <Input label="Tags" placeholder="Add tags" />
+                      </div>
+                    )}
+                  </InteriorPanel>
+                )}
+                </>
+              ))}
+              </div>
+                </div>
+    ),
+  };
   const contentByPanelKey: Record<PanelKey, EmbeddablePanelContent> = {
-    // Real panel content like every other entry here — still just a blank
-    // placeholder for now (content unchanged per explicit request; only
-    // Home's structural position and default-open state changed).
-    home: blankPanelContent("Home"),
+    // See `homeContent`'s own doc comment, above — real dashboard content
+    // now, not a placeholder.
+    home: homeContent,
     notif: notifContent,
     conversations: blankPanelContent("Agent Chat"),
     schedule: scheduleContent,
@@ -7479,703 +8205,15 @@ export function AgentWorkspace2WithDeskPage({
                   </div>
                 </div>
               ) : (
-                <div key="dashboard" className="flex flex-1 flex-col min-w-0 overflow-hidden animate-in fade-in-0 duration-200">
-                  {showPageHeader && (
-                    // Dashboard header — per explicit follow-up request,
-                    // back in this top, non-scrolling slot, above the tab
-                    // row ("I want it to be a page header" — undoing the
-                    // earlier move that sent it DOWN into the scrollable
-                    // dashboard body; see §116/BEHAVIOR.md for that whole
-                    // history). Wrapped in the same `<>...</>` fragment as
-                    // the `TabList` below since both now render in this
-                    // header slot together.
-                    //
-                    // Title/subtitle use the identity-header treatment
-                    // (title "Agent {name}", subhead "Agent ID:
-                    // {agentId}" + Connect Agent Leg link/Connecting.../
-                    // Connection Lag Time) instead of the former time-of-
-                    // day greeting ("Good {period}, {name}" + date) — per
-                    // explicit request to bring lyra-ui's "Agent Home
-                    // Dashboard" Storybook story's `greeting=false` header
-                    // into this app's real header (same change already
-                    // made to 2.0's `AgentNextGenPage.tsx` — see that
-                    // file's own doc comment for the full rationale).
-                    // `agentLegStatus` (declared above, alongside
-                    // `connectAgentLegSignal`) is a genuine live mirror of
-                    // `AgentProfile`'s own real agent-leg state, not a
-                    // demo toggle.
-                    //
-                    // No `titleSize="2xl"` override (matches lyra-ui's own
-                    // `AgentDashboardHeader`, the real pinned-header
-                    // variant, rather than `AgentDashboard`'s own inline
-                    // scrollable-body greeting, which keeps `2xl`) — this
-                    // reads at `PageHeader`'s own default size. `bordered
-                    // ={false}` IS still needed below, though: the
-                    // `TabList` immediately underneath draws its own
-                    // `border-b`, so leaving this header's default border
-                    // on would double it into two parallel lines — same
-                    // "header sits directly above an already-bordered row"
-                    // situation the interaction record header's own
-                    // `bordered={false}` (above, `recordHeaderRef` call
-                    // site) already documents.
-                    // Per explicit follow-up ("apply the agent home
-                    // dashboard header layout to agent-next-gen-v2"), the
-                    // title/subhead text matches lyra-ui's own current
-                    // `AgentDashboardHeader` layout (see that file's
-                    // `resolveGreetingContent`): the title dropped its
-                    // "Agent " prefix (plain name), the subhead label
-                    // changed from "Agent ID:" to "User Name:" (same
-                    // `CURRENT_AGENT_ID` value). Per a later explicit
-                    // follow-up ("float the personal queue chip to the
-                    // right for premium and advanced too"), the chip itself
-                    // is back in `actions` (the header's far right,
-                    // vertically centered) rather than lyra-ui's own
-                    // `titleSuffix`-inline placement — this header keeps the
-                    // real `PageHeader` component (unlike 2.0's identical
-                    // header, which stopped using `PageHeader` entirely per
-                    // its own separate explicit follow-up — see that file's
-                    // own doc comment, §119), so floating the chip right is
-                    // just `actions`, `PageHeader`'s own built-in slot for
-                    // exactly that.
-                    <>
-                    <PageHeader
-                      title={`Agent ${CURRENT_AGENT_FIRST_NAME} ${CURRENT_AGENT_LAST_NAME}`}
-                      subtitle={`User Name: ${CURRENT_AGENT_ID}`}
-                      // The `TabList` immediately below already draws its
-                      // own `border-b` — this header's own default border
-                      // would double that into two parallel lines with an
-                      // odd gap between them, same reasoning the
-                      // interaction record header's own `bordered={false}`
-                      // (above, `recordHeaderRef` call site) already
-                      // documents for the same "header sits directly above
-                      // a bordered row" situation.
-                      bordered={false}
-                      actions={
-                        // Per explicit request ("add a chip to the top
-                        // right (where the Assignments Completed today
-                        // used to be) that says '{N} Active Assignments'
-                        // and when clicked open the left rail") — this is
-                        // the exact spot the `SHOW_RESOLVED_TODAY_CHIP`-
-                        // gated Badge used to occupy (still hidden, see
-                        // that flag's own doc comment, agent-next-gen-
-                        // shared-utils.ts). Unlike that static badge, this
-                        // one is a real `Button` (Rule zero — no
-                        // hand-rolled `<button>`), styled to read as a
-                        // chip via the same `bg-lyra-status-*-subtle`/
-                        // `text-lyra-status-*-strong` pairing other info
-                        // callouts in this file already use as plain
-                        // classNames (not just inline style).
-                        // `interactions.length` is the exact same count
-                        // `AssignmentsSectionCaption` below renders as
-                        // "({count})" for the LeftNav's own caption — one
-                        // live number, two places it shows up.
-                        // `setNavOpen((v) => !v)` toggles the LeftNav
-                        // rail (its 52px/256px collapsed/expanded states
-                        // — see `navOpen`'s own declaration) exactly like
-                        // clicking its own collapse/expand toggle would.
-                        //
-                        // Label reads "Personal Queue: {N}", "Empty" in
-                        // place of a bare "0" once the queue has nothing
-                        // in it. The chip's color reflects the queue's
-                        // own worst-case state — success (green) once
-                        // genuinely empty, warning (amber) once it holds
-                        // any assignment at all, escalating to critical
-                        // (red) the moment ANY assignment has actually
-                        // breached SLA (not just nearing it) — same
-                        // success/warning/critical three-tier language
-                        // `getAwaitingSeverity`/the record-header channel
-                        // tab's own escalation already use, rolled up
-                        // across the whole queue. `hasBreachedSlaAssignment`
-                        // (declared alongside `clockTick` above) drives
-                        // both the red tier and the trailing `CircleAlert`
-                        // "!" mark — the same icon `ChannelTab` (lyra-ui,
-                        // channel-row.tsx) already reserves for a
-                        // genuinely breached (not just late) channel.
-                        //
-                        // Per explicit follow-up ("move connection lag
-                        // time / connect agent leg below Personal Queue
-                        // chip in all 3"), the tri-state agent-leg
-                        // indicator (Connect Agent Leg link/Connecting.../
-                        // Connection Lag Time) moved out of the subtitle
-                        // line and down here instead, stacked directly
-                        // under the chip in this same `actions` slot —
-                        // `flex-col items-end` right-aligns both under one
-                        // another instead of the row's normal side-by-side
-                        // layout.
-                        <div className="flex flex-col items-end gap-1">
-                          <Tooltip content="Toggle Assignment Panel" placement="bottom" asLabel>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setNavOpen((v) => !v)}
-                              className={cn(
-                                "h-6 shrink-0 gap-0.5 rounded-lyra-md px-2 lyra-body-md-emphasis",
-                                hasBreachedSlaAssignment
-                                  ? "bg-lyra-status-critical-subtle text-lyra-status-critical-strong hover:bg-lyra-status-critical-subtle hover:opacity-80"
-                                  : interactions.length > 0
-                                  ? "bg-lyra-status-warning-subtle text-lyra-status-warning-strong hover:bg-lyra-status-warning-subtle hover:opacity-80"
-                                  : "bg-lyra-status-success-subtle text-lyra-status-success-strong hover:bg-lyra-status-success-subtle hover:opacity-80"
-                              )}
-                            >
-                              Personal Queue: {interactions.length > 0 ? interactions.length : "Empty"}
-                              {hasBreachedSlaAssignment && (
-                                <CircleAlert className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" />
-                              )}
-                              <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" />
-                            </Button>
-                          </Tooltip>
-                          {agentLegStatus === "connected" ? (
-                            <span className="lyra-body-sm text-lyra-fg-secondary">{`Connection Lag Time: ${CURRENT_AGENT_CONNECTION_LAG_TIME}`}</span>
-                          ) : agentLegStatus === "connecting" ? (
-                            <span className="lyra-body-sm text-lyra-fg-secondary">Connecting...</span>
-                          ) : (
-                            // `Button` (Rule zero — no hand-rolled
-                            // `<button>`), stripped down to read as an
-                            // inline text link — same `h-auto p-0
-                            // hover:bg-transparent` pattern the record-
-                            // header's own "View Details" link-styled
-                            // `Button` uses (agent-next-gen-transcript.tsx).
-                            <Button
-                              variant="ghost"
-                              onClick={handleConnectAgentLeg}
-                              className="h-auto shrink-0 gap-0 p-0 hover:bg-transparent active:bg-transparent lyra-body-sm text-lyra-fg-link underline hover:no-underline"
-                            >
-                              Connect Agent Leg
-                            </Button>
-                          )}
-                        </div>
-                      }
-                    />
-                      <TabList
-                        overflowMenu
-                        reorderable
-                        // Filtered rather than a bare cast: `reorderable`
-                        // reports back the FULL dragged order, including any
-                        // customer tabs interspersed among the fixed ones —
-                        // only the fixed `DeskTabKey` entries are real,
-                        // persistable `deskTabOrder` state (see that state's
-                        // own doc comment); a customer tab dragged elsewhere
-                        // in the row just snaps back to its fixed
-                        // far-right position on the next render regardless
-                        // (this `TabList`'s own children are always rendered
-                        // `deskTabOrder` first, `openCustomerTabs` after —
-                        // see that state's own doc comment on why it's
-                        // deliberately never reorderable itself, per the
-                        // request's own "put it to the far right" wording).
-                        onReorder={(order) =>
-                          setDeskTabOrder(order.filter((key): key is DeskTabKey => !String(key).startsWith("customer:")))
-                        }
-                        className="px-6 bg-lyra-bg-surface-base shrink-0"
-                      >
-                        {deskTabOrder.map((key) => (
-                          <Tab key={key} active={activeDeskTab === key} onClick={() => setActiveDeskTab(key)}>
-                            {DESK_TAB_LABELS[key]}
-                          </Tab>
-                        ))}
-                        {/* Customer full-screen tabs — always after every
-                            fixed `deskTabOrder` tab, per explicit request
-                            ("put it to the far right of the tabs"). Leading
-                            `User` icon (a customer, not a fixed desk
-                            section); trailing `onRemove` uses `Tab`'s own
-                            built-in close affordance.
-                            `removeIcon` — per a later explicit follow-up
-                            request ("make the trash icons 'x' for the
-                            customer info tabs so they don't look like
-                            delete"): overrides the app-wide default
-                            `Trash2` glyph (see `removeIcon`'s own doc
-                            comment, tabs.tsx) with a plain `X` for these
-                            tabs specifically — closing one of these just
-                            stops viewing the customer, it doesn't delete
-                            anything, unlike the draft-thread tabs the
-                            trash-can convention was actually built for. */}
-                        {openCustomerTabs.map((tab) => (
-                          <Tab
-                            key={tab.id}
-                            active={activeDeskTab === tab.id}
-                            onClick={() => setActiveDeskTab(tab.id)}
-                            icon={<User className="h-4 w-4" strokeWidth={1.5} aria-hidden="true" />}
-                            onRemove={() => handleCloseCustomerTab(tab.id)}
-                            removeIcon={<X className="h-4 w-4" strokeWidth={1.5} aria-hidden="true" />}
-                            removeLabel={`Close ${tab.name}`}
-                          >
-                            {tab.name}
-                          </Tab>
-                        ))}
-                      </TabList>
-                    </>
-                  )}
-              {/* Body row: main content + interior panel */}
-              <div className="relative flex flex-1 overflow-hidden">
-              {/* Customers list view + row-info panel stay mounted across
-                  desk-tab switches (never unmounted by the `hidden` toggle
-                  below) so `CustomersListView`'s own search/sort/filters/
-                  added-filter-keys/visible-columns/pagination/row-selection
-                  state all survive navigating away to another tab and back
-                  — a plain `cond ? <CustomersListView/> : ...` would remount
-                  it fresh (and lose every one of those) each time.
-
-                  Both now live together in ONE real box (`flex flex-1
-                  overflow-hidden`, not `display:contents`) that toggles
-                  `hidden` as a whole, rather than each having its own
-                  separate visibility mechanism the way this used to be
-                  split (`CustomersListView` behind a `contents`/`hidden`
-                  wrapper, `CustomerRowInfoPanel` driven by nulling its own
-                  `row` prop instead). That split was the actual cause of a
-                  reported bug: nulling `row` on tab-switch didn't hide the
-                  panel — it told `InteriorPanel` to CLOSE, which plays its
-                  own 250ms width-close transition. Because the panel was a
-                  real flex sibling of whatever the newly-selected tab was
-                  about to show, that 250ms of shrinking width visibly
-                  reflowed the new tab's content growing to fill the space
-                  beside it — the "dashboard animating its position" bug.
-                  Removing it from layout instantly (rather than animating
-                  the panel closed) is what fixes the reported reflow — the
-                  panel's own real open/close animation still plays normally
-                  for actual same-tab closes (its header's × button, or
-                  `onRowClick` picking a different row); only navigating AWAY
-                  from this tab skips it.
-
-                  `display:none` (Tailwind's `hidden`) was the first attempt
-                  here, but it caused a SECOND, subtler bug on the way BACK
-                  in: `InteriorPanel` (inside `CustomerRowInfoPanel`) tracks
-                  its own real DOM parent's width via `ResizeObserver` to
-                  decide whether to auto-full-screen below 768px (see that
-                  component's own doc comment) — and `display:none` elements
-                  report a genuine 0×0 size to `ResizeObserver`, not just a
-                  stale old value. So the instant this wrapper went
-                  `display:none`, the observer fired with width 0, and that
-                  0 lingered as `InteriorPanel`'s last-known parent width
-                  until a NEW (necessarily asynchronous — `ResizeObserver`
-                  callbacks never run synchronously with the style change
-                  that caused them) callback caught up with the real width
-                  after switching back. For that one frame, `parentWidth`
-                  read as 0 (well under both the 1024px/768px thresholds),
-                  so `InteriorPanel` briefly rendered its full-screen/
-                  absolute-overlay layout before correcting itself back to
-                  its normal ~350-425px docked width and position — visible
-                  as the panel sliding in from full width, the left-to-right
-                  animation reported after this fix's first pass.
-
-                  `visibility:hidden` (`invisible`) + `position:absolute
-                  inset-0` was the SECOND attempt, replacing `display:none` —
-                  it still generates a real box with a real, stable size for
-                  `ResizeObserver`, fixing the bug above. But it introduced a
-                  THIRD bug: `visibility` is inherited but overridable by a
-                  descendant that sets its own explicit value — and
-                  `InteriorPanel`'s inner content div does exactly that
-                  (`style={{ visibility: open ? "visible" : "hidden" }}`,
-                  interior-panel.tsx), keyed off its OWN `open` prop, which is
-                  `row !== null` — true regardless of which desk tab is
-                  active, since `row` is just `selectedCustomerRow` now, not
-                  gated on `activeDeskTab` (see the render call site below).
-                  So `invisible` on this wrapper got silently overridden back
-                  to visible one level down, and — still `position:absolute`,
-                  so no longer competing for flex space either — the panel
-                  rendered floating on top of whatever tab WAS actually
-                  active, confirmed from a screenshot showing it overlapping
-                  the Dashboard.
-
-                  `opacity-0` (this wrapper) + `inert` (native HTML attribute,
-                  supported as a real prop since React 19 — see this file's
-                  own React version) is the fix that actually holds up:
-                  unlike `visibility`, `opacity` composites the WHOLE
-                  subtree as one flattened layer, so a descendant's own
-                  inline `opacity`/`visibility` can't punch back through a
-                  `0`-opacity ancestor the way it could with `visibility`
-                  alone. `inert` (not just `pointer-events-none`) additionally
-                  drops the entire subtree out of tab order and the
-                  accessibility tree and blocks ALL interaction, not only
-                  pointer events — the same "fully inactive but still really
-                  there, still correctly sized" result `visibility:hidden`
-                  was reaching for, just via a property children genuinely
-                  cannot override. */}
-              <div
-                className={
-                  activeDeskTab === "customers"
-                    ? "relative flex flex-1 overflow-hidden animate-in fade-in-0 duration-200"
-                    : "absolute inset-0 flex overflow-hidden opacity-0"
-                }
-                inert={activeDeskTab !== "customers"}
-              >
-                <CustomersListView
-                  onStartInteraction={(contact, channel, phone, skillId) =>
-                    handleStartCall({ contact, channel, phone, skillId })
-                  }
-                  addedFilterKeys={customerAddedFilterKeys}
-                  onAddedFilterKeysChange={setCustomerAddedFilterKeys}
-                  filterValues={customerFilterValues}
-                  onFilterValuesChange={setCustomerFilterValues}
-                  // Clicking the row that's already open (highlighted via
-                  // `openRowId`) closes `CustomerRowInfoPanel` instead of
-                  // just re-opening the same row it's already showing.
-                  onRowClick={(row) =>
-                    setSelectedCustomerRow((prev) =>
-                      prev?.contactNumber === row.contactNumber ? null : row
-                    )
-                  }
-                  searchQuery={customerSearchQuery}
-                  onSearchChange={setCustomerSearchQuery}
-                  sortKey={customerSortKey}
-                  sortDir={customerSortDir}
-                  onSort={handleCustomerSort}
-                  sortedRows={customerSortedRows}
-                  openRowId={selectedCustomerRow?.contactNumber ?? null}
-                  // Per explicit request (with screenshots) — leading
-                  // overlapping channel-icon stack instead of the "Channels"
-                  // column, Premium/Advanced only. See `leadingChannelStack`'s
-                  // own doc comment (agent-next-gen-customers-table.tsx).
-                  leadingChannelStack
-                  // Per explicit request ("add a blank column header and if
-                  // a record is open as an assignment or as a tab add an
-                  // eye icon"), Premium/Advanced only — a row is "open" if
-                  // it has a live left-nav assignment card (`interactions`,
-                  // matched on `Interaction.customerId`, the same id space
-                  // as `row.contactNumber` — see `isRowOpen`'s own doc
-                  // comment, agent-next-gen-customers-table.tsx) OR is
-                  // currently showing as one of this tier's own customer
-                  // full-screen tabs (`openCustomerTabs`, Premium-only —
-                  // each tab already carries its row's full
-                  // `CustomerListRecord`, so no id translation is needed).
-                  isRowOpen={(row) =>
-                    interactions.some((i) => i.customerId === row.contactNumber) ||
-                    openCustomerTabs.some((t) => t.row.contactNumber === row.contactNumber)
-                  }
-                />
-                <CustomerRowInfoPanel
-                  row={selectedCustomerRow}
-                  onClose={() => setSelectedCustomerRow(null)}
-                  onPrevious={() => handleCustomerRowNav(-1)}
-                  onNext={() => handleCustomerRowNav(1)}
-                  hasPrevious={selectedCustomerIndex > 0}
-                  hasNext={selectedCustomerIndex !== -1 && selectedCustomerIndex < customerSortedRows.length - 1}
-                  onStartInteraction={(contact, channel, phone, skillId) =>
-                    handleStartCall({ contact, channel, phone, skillId })
-                  }
-                  tabs={CUSTOMER_PANEL_TABS}
-                  onAddToast={addToast}
-                  onOpenFullScreenTab={handleOpenCustomerFullScreenTab}
-                  // Per explicit request ("hide the next/prev in the
-                  // customer info cards for advanced and premium in the
-                  // customer table view") — see `hidePrevNext`'s own doc
-                  // comment (agent-next-gen-customer-info-panel.tsx).
-                  hidePrevNext
-                />
-              </div>
-              {/* Customer full-screen tabs (`openCustomerTabs`, see that
-                  state's own doc comment) — same always-mounted opacity-0/
-                  inert treatment as the "customers" block just above,
-                  applied per open tab rather than once: since several can
-                  be open simultaneously and each keeps its own independent
-                  `activeTab`/draft/edit state (`CustomerFullScreenTabContent`
-                  owns all of that itself, not lifted here), switching
-                  between them must not remount either one — the exact same
-                  "why not `display:none`/`visibility:hidden`" reasoning
-                  documented at length on the "customers" block above
-                  applies identically here, just multiplied across however
-                  many tabs happen to be open. */}
-              {openCustomerTabs.map((tab) => (
-                <div
-                  key={tab.id}
-                  className={
-                    activeDeskTab === tab.id
-                      ? "relative flex flex-1 overflow-hidden animate-in fade-in-0 duration-200"
-                      : "absolute inset-0 flex overflow-hidden opacity-0"
-                  }
-                  inert={activeDeskTab !== tab.id}
-                >
-                  <CustomerFullScreenTabContent
-                    row={tab.row}
-                    tabs={CUSTOMER_PANEL_TABS}
-                    onStartInteraction={(contact, channel, phone, skillId) =>
-                      handleStartCall({ contact, channel, phone, skillId })
-                    }
-                    onAddToast={addToast}
-                    // Per explicit request ("keep the 'x' button in the top
-                    // right of the record so agents can close it there or
-                    // in the tab if they want") — same `handleCloseCustomerTab`
-                    // the tab strip's own `onRemove` already calls (see that
-                    // `Tab` call site above), so closing from either place
-                    // behaves identically.
-                    onClose={() => handleCloseCustomerTab(tab.id)}
-                  />
-                </div>
-              ))}
-              {activeDeskTab !== "customers" && !activeDeskTab.startsWith("customer:") && (activeDeskTab !== "home" ? (
-                // Accounts/Tickets/WEM — no content built yet; same
-                // "Coming soon" placeholder treatment used elsewhere in
-                // this file for in-progress tabs (e.g. the Customer
-                // History tab), rather than silently falling through to
-                // the Dashboard's own queue widgets/summary cards below.
-                // `key={activeDeskTab}` forces a fresh mount on every
-                // switch (including Accounts → Tickets, which would
-                // otherwise reuse this exact same element/position and
-                // never replay `animate-in`) — same reasoning as the
-                // top-level Settings/interaction/dashboard branches' own
-                // `key`s above.
-                //
-                // "interactions" used to be its own branch here
-                // (InteractionsListView, mounted directly), but per explicit
-                // request ("move the interactions tab to the search panel
-                // (make it the first tab) - like in 2.0 basic/advanced")
-                // that content moved to the Search panel instead (see
-                // `searchContent`'s own doc comment above) and "interactions"
-                // was removed from `deskTabOrder` — so this branch can no
-                // longer actually be reached for "interactions" specifically,
-                // same as it already couldn't for Accounts/Tickets/WEM.
-                <div key={activeDeskTab} className="flex flex-1 items-center justify-center p-4 animate-in fade-in-0 duration-200">
-                  <p className="lyra-body-md text-lyra-fg-disabled text-center">Coming soon</p>
-                </div>
-              ) : (
-                <>
-                <div key={activeDeskTab} className="flex flex-1 flex-col min-w-0 overflow-y-auto px-6 py-6 animate-in fade-in-0 duration-200">
-                  <div className="w-full max-w-[1200px] mx-auto lyra-container-grid-wrap">
-                    {/* ── Queue widgets ──
-                        `DashboardQueue` ("cards" variant, its default) —
-                        the numbers come straight from `latestContacts`
-                        (see the "Live queue simulation" state above), so
-                        they'd stay in sync with the accordion presentation
-                        of the same data if that's ever turned back on (see
-                        the note below) — and Contacts/Wait Time visibly
-                        tick/fluctuate in real time rather than sitting
-                        frozen at the same numbers forever. Clicking a
-                        widget opens the interior panel with that queue's
-                        sub-queue breakdown; the selected widget gets the
-                        "info-strong" (blue) treatment `DashboardQueue`
-                        applies on selection, driven by the controlled
-                        `selectedId`/`onSelect` pair kept in sync with the
-                        panel state. */}
-                    {/* No `mt-6` here — this is the first row in the
-                        dashboard body, and the scroll wrapper around
-                        `.lyra-container-grid-wrap` already supplies its
-                        own top spacing (`py-6` a few lines up), so an
-                        extra `mt-6` on top of that just doubled the gap
-                        between the tab bar and this row. The rows below
-                        (`ContactHistoryCard`, the summary cards) keep
-                        their own `mt-6` — they still need spacing from
-                        whatever row sits above THEM. */}
-                    <DashboardQueue
-                      items={latestContacts.map((contact) => ({
-                        id: contact.id,
-                        name: contact.name,
-                        icon: contact.icon,
-                        wait: contact.wait,
-                        skillsCount: contact.skillsCount,
-                        contactsCount: contact.contactsCount,
-                        agentsCount: contact.agentsCount,
-                      }))}
-                      selectedId={selectedQueueId}
-                      onSelect={(id) => {
-                        // Same "only one job in this shared docked slot at a
-                        // time" rule as the Contact History row's own
-                        // `onSelectEntry` above, the other direction — a
-                        // queue widget click while a Contact History entry's
-                        // summary is showing needs to actually swap the
-                        // panel over, not leave the old entry's content
-                        // sitting underneath a now-mismatched queue header.
-                        setSelectedContactHistoryEntry(null);
-                        setSelectedQueueId(id);
-                      }}
-                    />
-
-                    {/* ── Latest Cases ──
-                        Removed for now (was `DashboardQueue`'s "accordion"
-                        variant, showing the same data as expandable rows
-                        with each queue's `InteractionsTable` as content) —
-                        may come back later, so `latestContacts`,
-                        `InteractionsTable`, and the rest of the data/markup
-                        it depended on are left in place rather than deleted. */}
-
-                    <div className="mt-6">
-                      <ContactHistoryCard
-                        onSelectEntry={(entry) => {
-                          // Clicking the row that's ALREADY selected closes
-                          // the panel instead of re-opening it on itself —
-                          // same "click the already-selected one to toggle
-                          // it off" behavior `DashboardQueue`'s own
-                          // `selectedId`/`onSelect` pair documents for the
-                          // queue widgets above.
-                          if (entry.id === selectedContactHistoryEntry?.id) {
-                            setSelectedContactHistoryEntry(null);
-                            return;
-                          }
-                          // Deselect the OTHER two jobs this shared interior
-                          // panel slot can show — only one is ever relevant
-                          // at a time, same "selectedQueueId set takes
-                          // priority" convention that panel's own doc
-                          // comment already documents.
-                          setSelectedQueueId(null);
-                          setInteriorPanelOpen(false);
-                          setSelectedContactHistoryEntry(entry);
-                        }}
-                        selectedEntryId={selectedContactHistoryEntry?.id ?? null}
-                        historyByRange={contactHistoryByRange}
-                      />
-                    </div>
-
-                    {/* ── Summary cards ──
-                        Was three cards (Activity/Performance/Productivity);
-                        Activity's ring chart moved into the bottom of
-                        PerformanceBreakdownCard (Productivity) and the
-                        standalone Activity card was removed, since the ring
-                        visualized the exact same Available/Working/
-                        Unavailable data Productivity's own rows already
-                        list — one card showing it twice added nothing a
-                        single card + ring didn't already cover. */}
-                    <div className="mt-6 lyra-container-grid">
-                      <PerformanceSummaryCard />
-                      <PerformanceBreakdownCard />
-                    </div>
-                  </div>
-                </div>
-                {showInteriorPanel && (
-                  <InteriorPanel
-                    side="right"
-                    // Reuses this one docked slot for THREE different jobs
-                    // — the pre-existing "Case Details" form, the queue
-                    // drill-down, and (per explicit request)
-                    // `selectedContactHistoryEntry`'s own Contact History
-                    // row summary — rather than stacking a second right-side
-                    // panel, since only one detail view is ever relevant at
-                    // a time. `selectedQueueId` set takes priority over
-                    // `selectedContactHistoryEntry`, which in turn takes
-                    // priority over the plain `interiorPanelOpen` "Case
-                    // Details" default — same priority order in the open
-                    // condition, header, content, and footer below.
-                    open={interiorPanelOpen || Boolean(selectedQueueId) || Boolean(selectedContactHistoryEntry)}
-                    headerTitle={
-                      selectedQueueId
-                        ? latestContacts.find((c) => c.id === selectedQueueId)?.name ?? "Queue"
-                        : selectedContactHistoryEntry
-                        ? selectedContactHistoryEntry.name
-                        : "Case Details"
-                    }
-                    // "{n} Skills" for the queue drill-down (the same count
-                    // as that queue widget's own Skills metric, derived from
-                    // this exact `queueSubItems[selectedQueueId]` list) or,
-                    // per explicit follow-up request, the routing skill name
-                    // for a Contact History entry (previously the case ID —
-                    // `headerTitle` above already shows the customer's real
-                    // name, so this now surfaces a second, distinct fact
-                    // about the contact instead).
-                    headerSubhead={
-                      selectedQueueId
-                        ? `${(queueSubItems[selectedQueueId] ?? []).length} Skills`
-                        : selectedContactHistoryEntry?.skillName
-                    }
-                    onClose={() => {
-                      setInteriorPanelOpen(false);
-                      setSelectedQueueId(null);
-                      setSelectedContactHistoryEntry(null);
-                    }}
-                    // Redial/Re-open — per explicit request, these now live
-                    // here (the summary panel) instead of directly on the
-                    // Contact History row; either one reopens the contact as
-                    // a live assignment in the left nav (the row's own
-                    // previous click behavior — see `handleRedial`/
-                    // `handleReopenContactHistoryEntry`'s own doc comments),
-                    // then closes this panel since there's nothing left here
-                    // to look at once that's happened. Mutually exclusive by
-                    // channel type, per explicit request — a voice contact
-                    // (`entry.redial`) only ever gets "Redial" (starting a
-                    // literal fresh call is the only thing "reopening" a
-                    // call can mean), never "Re-open" alongside it; every
-                    // other channel type only ever gets "Re-open" (nothing
-                    // to "redial" on a chat/SMS/email/WhatsApp contact).
-                    footer={
-                      selectedContactHistoryEntry ? (
-                        selectedContactHistoryEntry.redial ? (
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              handleRedial(selectedContactHistoryEntry);
-                              setSelectedContactHistoryEntry(null);
-                            }}
-                          >
-                            <PhoneOutgoing className="h-3.5 w-3.5" strokeWidth={1.5} />
-                            Redial
-                          </Button>
-                        ) : (
-                          <Button
-                            onClick={() => {
-                              handleReopenContactHistoryEntry(selectedContactHistoryEntry);
-                              setSelectedContactHistoryEntry(null);
-                            }}
-                          >
-                            <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.5} />
-                            Re-open
-                          </Button>
-                        )
-                      ) : undefined
-                    }
-                  >
-                    {selectedQueueId ? (
-                      <div className="flex flex-col">
-                        {(queueSubItems[selectedQueueId] ?? []).map((item, i) => (
-                          <div
-                            key={item.id}
-                            className={cn(
-                              "flex flex-col gap-2 px-4 py-4",
-                              i > 0 && "border-t border-lyra-border-subtle"
-                            )}
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="inline-flex items-center gap-2 lyra-body-md-emphasis text-lyra-fg-default">
-                                <item.icon className="h-4 w-4 text-lyra-fg-secondary" strokeWidth={1.5} />
-                                {item.label}
-                              </span>
-                              <span className="lyra-body-sm text-lyra-fg-secondary whitespace-nowrap">
-                                {item.inQueueCount} In Queue
-                              </span>
-                            </div>
-                            <span className="inline-flex items-center gap-1 lyra-body-sm text-lyra-fg-secondary">
-                              <Clock className="h-3 w-3" strokeWidth={1.5} />
-                              Longest Wait Time: {item.wait}
-                            </span>
-                            {/* Available / Working / Unavailable agent counts for
-                                this sub-queue — same icons, colors, and order as
-                                PRODUCTIVITY_STATUS_META (Activity/Productivity
-                                cards), just rendered as compact circular Icon
-                                badges instead of a donut/bar. Each badge gets a
-                                hover tooltip spelling out what the count means,
-                                since the color/icon alone doesn't say "agents". */}
-                            <div className="flex items-center gap-3">
-                              <Tooltip content="Available Agents" placement="top">
-                                <span className="inline-flex items-center gap-1.5">
-                                  <Icon icon={CheckCircle2} size="sm" background="success" shape="circle" decorative />
-                                  <span className="lyra-body-sm-emphasis text-lyra-fg-default">{item.available}</span>
-                                </span>
-                              </Tooltip>
-                              <Tooltip content="Working Agents" placement="top">
-                                <span className="inline-flex items-center gap-1.5">
-                                  <Icon icon={CircleDot} size="sm" background="warning" shape="circle" decorative />
-                                  <span className="lyra-body-sm-emphasis text-lyra-fg-default">{item.working}</span>
-                                </span>
-                              </Tooltip>
-                              <Tooltip content="Unavailable Agents" placement="top">
-                                <span className="inline-flex items-center gap-1.5">
-                                  <Icon icon={MinusCircle} size="sm" background="critical" shape="circle" decorative />
-                                  <span className="lyra-body-sm-emphasis text-lyra-fg-default">{item.unavailable}</span>
-                                </span>
-                              </Tooltip>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : selectedContactHistoryEntry ? (
-                      <ContactHistoryEntryDetail entry={selectedContactHistoryEntry} />
-                    ) : (
-                      <div className="flex flex-col gap-4 px-4 py-4">
-                        <Input label="Subject" placeholder="Enter subject" />
-                        <Input label="Priority" placeholder="Select priority" />
-                        <Input label="Assignee" placeholder="Search agents" />
-                        <Input label="Tags" placeholder="Add tags" />
-                      </div>
-                    )}
-                  </InteriorPanel>
-                )}
-                </>
-              ))}
-              </div>
+                <div className="flex flex-1 flex-col min-w-0 overflow-hidden items-center justify-center">
+                  {/* Home used to render its full dashboard directly here as the
+                      app's default main view. Per explicit request it's now a real
+                      panel entry instead (see `homeContent`, above, and
+                      `PANEL_KEY_METADATA`/`panelFullScreen`'s initial
+                      `useState(true)` — Home defaults to open, full screen, on
+                      load) — this fallback only ever shows if that panel gets
+                      closed with no interaction active. */}
+                  <p className="lyra-body-md text-lyra-fg-disabled text-center">Nothing here yet.</p>
                 </div>
               )}
             </div>
