@@ -5833,6 +5833,19 @@ export function AgentWorkspace2WithDeskPage({
     ? `${activeInteraction.customerName ?? "Customer"} (${activeInteraction.customerId})`
     : "Home";
 
+  // Whether the shared panel is genuinely on screen right now — while an
+  // interaction is active, that's exactly `panelOpen` (it's a real
+  // docked/floating overlay that can be toggled shut); without one, the
+  // panel IS the primary view (`primaryPanelView`, further below) and can
+  // never actually be closed (see `handlePanelButtonClick`'s own comment
+  // just below), so it's always genuinely visible there regardless of
+  // `panelOpen`'s own last value. Per explicit bug report: closing the
+  // panel while an interaction was active, then dismissing every
+  // interaction, used to leave the header icon/apps-menu row for whichever
+  // panel `primaryPanelView` was now showing full-screen NOT rendered as
+  // "selected" — this is what both now check instead of `panelOpen` alone.
+  const panelIsVisible = activeInteraction ? panelOpen : true;
+
   // Clicking a button: re-clicking the CURRENTLY showing one closes the
   // shared container outright. Otherwise, if it's closed, open it docked
   // (see `panelVariant`'s own doc comment above); if it's already open
@@ -5840,7 +5853,7 @@ export function AgentWorkspace2WithDeskPage({
   // itself never resizes, repositions, or re-animates open+close, only its
   // title/body content does.
   const handlePanelButtonClick = (key: PanelKey) => () => {
-    if (panelOpen && activePanelKey === key) {
+    if (panelIsVisible && activePanelKey === key) {
       // Without an active interaction, this panel IS the primary view (see
       // `primaryPanelView`'s own doc comment) — there's nothing behind it
       // to reveal, so closing is disabled; re-clicking the already-active
@@ -5937,10 +5950,11 @@ export function AgentWorkspace2WithDeskPage({
       label,
       icon: <KeyIcon className="h-4 w-4" strokeWidth={1.5} />,
       // Mirrors the header icon buttons' own `PANEL_BUTTON_SELECTED_CLASS`
-      // condition — whichever app currently owns the shared panel gets the
-      // same blue "active" row treatment here (MenuRadixItem's `item.active`
-      // branch) that its header icon gets.
-      active: panelOpen && activePanelKey === key,
+      // condition (`panelIsVisible`, above `handlePanelButtonClick`) —
+      // whichever app currently owns the shared panel gets the same blue
+      // "active" row treatment here (MenuRadixItem's `item.active` branch)
+      // that its header icon gets.
+      active: panelIsVisible && activePanelKey === key,
       onClick: handlePanelButtonClick(key),
       // Selecting an app should just switch the shared panel to it, the
       // same way clicking its header icon would — not also close this
@@ -6536,7 +6550,7 @@ export function AgentWorkspace2WithDeskPage({
             <div ref={headerIconsMeasureRef} className="flex items-center gap-0">
               {panelOrder.filter(showHeaderIcon).map((key) => {
                 const { label, icon: KeyIcon } = PANEL_KEY_METADATA[key];
-                const isActive = panelOpen && activePanelKey === key;
+                const isActive = panelIsVisible && activePanelKey === key;
                 return (
                   <div
                     key={key}
