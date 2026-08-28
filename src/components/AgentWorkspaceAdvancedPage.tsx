@@ -1651,10 +1651,13 @@ export function AgentWorkspaceAdvancedPage({
     | "search"
     | "settings";
 
-  const [panelOpen,      setPanelOpen]      = useState(false);
+  // Defaults to open on "home" — per explicit request, Home is now a real
+  // panel like every other app, just pre-opened so the app still lands on
+  // it (content itself is unchanged/still a blank placeholder for now).
+  const [panelOpen,      setPanelOpen]      = useState(true);
   const [panelMounted,   setPanelMounted]   = useState(false);
   const [panelState,     setPanelState]     = useState<PanelState>("closed");
-  const [activePanelKey, setActivePanelKey] = useState<PanelKey | null>(null);
+  const [activePanelKey, setActivePanelKey] = useState<PanelKey | null>("home");
   // Defaults to "docked" per an earlier request — the AppHeader icon
   // buttons should each open the full layout-pushing docked panel
   // immediately on first click, rather than a transient floating popover.
@@ -1870,8 +1873,9 @@ export function AgentWorkspaceAdvancedPage({
     // Per explicit request: Home moved here from its own standalone LeftNav
     // rail item, pinned to start (persistent header icon on load) and
     // first in `PANEL_KEY_INITIAL_ORDER` below — same relocation pattern
-    // Settings went through just before it, just pinned instead of
-    // unpinned since Home is the default/primary view.
+    // Settings went through just before it. It's also the one panel that
+    // defaults OPEN (see the `panelOpen`/`activePanelKey` initial state
+    // above) so the app still lands on it, same as before this moved.
     home: true,
     // Notifications/Schedule swapped per explicit follow-up ("move the
     // notifications into the app menu list unpinned and pin the Schedule
@@ -4083,9 +4087,9 @@ export function AgentWorkspaceAdvancedPage({
     },
   });
   const contentByPanelKey: Record<PanelKey, EmbeddablePanelContent> = {
-    // Never actually rendered — `handlePanelButtonClick` below
-    // short-circuits "home" before `activePanelKey` is ever set to it, so
-    // this entry only exists to satisfy this Record type's completeness.
+    // Real panel content like every other entry here — still just a blank
+    // placeholder for now (content unchanged per explicit request; only
+    // Home's structural position and default-open state changed).
     home: blankPanelContent("Home"),
     notif: notifContent,
     conversations: blankPanelContent("Agent Chat"),
@@ -4125,18 +4129,6 @@ export function AgentWorkspaceAdvancedPage({
   // itself never resizes, repositions, or re-animates open+close, only its
   // title/body content does.
   const handlePanelButtonClick = (key: PanelKey) => () => {
-    // "Home" isn't real panel content — it's the same "go back to the
-    // dashboard" action the old LeftNav Home rail item performed directly
-    // (`switchActiveInteraction(null)`). Per explicit request it moved into
-    // this same apps system for its header-icon/"View All Apps" presentation
-    // (pinned, first), but clicking it still just clears the active
-    // interaction — it deliberately never opens/becomes shared-panel
-    // content, and leaves whatever panel is already open untouched, same as
-    // every other direct `switchActiveInteraction(null)` caller elsewhere.
-    if (key === "home") {
-      switchActiveInteraction(null);
-      return;
-    }
     if (panelOpen && activePanelKey === key) {
       setPanelOpen(false);
       return;
@@ -4228,7 +4220,7 @@ export function AgentWorkspaceAdvancedPage({
       // condition — whichever app currently owns the shared panel gets the
       // same blue "active" row treatment here (MenuRadixItem's `item.active`
       // branch) that its header icon gets.
-      active: key === "home" ? !activeInteraction : (panelOpen && activePanelKey === key),
+      active: panelOpen && activePanelKey === key,
       onClick: handlePanelButtonClick(key),
       // Selecting an app should just switch the shared panel to it, the
       // same way clicking its header icon would — not also close this
@@ -4782,7 +4774,7 @@ export function AgentWorkspaceAdvancedPage({
             <div ref={headerIconsMeasureRef} className="flex items-center gap-0">
               {panelOrder.filter(showHeaderIcon).map((key) => {
                 const { label, icon: KeyIcon } = PANEL_KEY_METADATA[key];
-                const isActive = key === "home" ? !activeInteraction : (panelOpen && activePanelKey === key);
+                const isActive = panelOpen && activePanelKey === key;
                 return (
                   <div
                     key={key}
