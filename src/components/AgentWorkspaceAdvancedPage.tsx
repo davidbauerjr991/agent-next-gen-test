@@ -2418,9 +2418,19 @@ export function AgentWorkspaceAdvancedPage({
      Overrides OUTBOUND_CONFIG's default onStartCall/onQuickDial (which just
      console.log) so this page actually surfaces what gets launched as
      InteractionNavItem cards in the left nav. Used to also force the nav
-     open (`setNavOpen(true)`) whenever a new assignment launched — dropped
-     per explicit request: starting/reopening an assignment no longer
-     expands a collapsed rail on its own. */
+     open (`setNavOpen(true)`) whenever a new assignment launched, then
+     dropped per an earlier explicit request (starting/reopening an
+     assignment no longer expanded a collapsed rail on its own) — now
+     reinstated, and broadened to also close the shared right panel
+     (`setPanelOpen(false)`), per a later explicit request: launching any
+     brand-new interaction (see each handler's own `isNewInteraction` gate
+     below, and `handleOpenAssignmentFromNotification`'s further down)
+     always opens the left nav and closes the right panel, so the new
+     assignment gets the full-width record view. Merely switching to an
+     ALREADY-open interaction (`switchActiveInteraction` alone, with no
+     `isNewInteraction` gate around it — e.g. a left-nav card click) never
+     touches either state, so an agent who reopens the right panel and then
+     clicks a different, already-open card keeps seeing it open. */
   const handleStartCall = (selection: {
     contact: CreateNewOutboundContact;
     channel: ChannelType;
@@ -2618,7 +2628,13 @@ export function AgentWorkspaceAdvancedPage({
     // here. A new one opens/stays closed per `lastSidePanelOpenChoice` —
     // the agent's own last explicit choice (not hardcoded open) — per
     // explicit follow-up request.
-    if (isNewInteraction) setSidePanelOpen(lastSidePanelOpenChoice.current);
+    if (isNewInteraction) {
+      setSidePanelOpen(lastSidePanelOpenChoice.current);
+      // Per explicit follow-up — see `handleStartCall`'s own doc comment
+      // above for the full history/reasoning.
+      setNavOpen(true);
+      setPanelOpen(false);
+    }
     // Closes `CustomerRowInfoPanel` (the Customers table's own row-detail
     // flyout — a DIFFERENT panel from Customer Information/`setSidePanelOpen`
     // just above, which is the active-interaction record's own panel) any
@@ -2738,7 +2754,13 @@ export function AgentWorkspaceAdvancedPage({
       );
     });
     switchActiveInteraction(id);
-    if (isNewInteraction) setSidePanelOpen(lastSidePanelOpenChoice.current);
+    if (isNewInteraction) {
+      setSidePanelOpen(lastSidePanelOpenChoice.current);
+      // Per explicit follow-up — see `handleStartCall`'s own doc comment
+      // above for the full history/reasoning.
+      setNavOpen(true);
+      setPanelOpen(false);
+    }
   };
 
   /* "Redial" from the home tab's Contact History card — same merge-by-id
@@ -2811,7 +2833,13 @@ export function AgentWorkspaceAdvancedPage({
       );
     });
     switchActiveInteraction(id);
-    if (isNewInteraction) setSidePanelOpen(lastSidePanelOpenChoice.current);
+    if (isNewInteraction) {
+      setSidePanelOpen(lastSidePanelOpenChoice.current);
+      // Per explicit follow-up — see `handleStartCall`'s own doc comment
+      // above for the full history/reasoning.
+      setNavOpen(true);
+      setPanelOpen(false);
+    }
   };
 
   // Record header's "+" Add Channel fallback (`AddChannelAdHocButton`,
@@ -2943,6 +2971,11 @@ export function AgentWorkspaceAdvancedPage({
         setInteractions((prev) => [...prev, storedRecord]);
         switchActiveInteraction(storedRecord.id);
         setSidePanelOpen(lastSidePanelOpenChoice.current);
+        // Also a genuinely new interaction (this whole branch only runs
+        // when `!existingInteraction`) — see `handleStartCall`'s own doc
+        // comment above for the full history/reasoning.
+        setNavOpen(true);
+        setPanelOpen(false);
         return;
       }
     }
@@ -3063,7 +3096,13 @@ export function AgentWorkspaceAdvancedPage({
       });
     });
     switchActiveInteraction(id);
-    if (isNewInteraction) setSidePanelOpen(lastSidePanelOpenChoice.current);
+    if (isNewInteraction) {
+      setSidePanelOpen(lastSidePanelOpenChoice.current);
+      // Per explicit follow-up — see `handleStartCall`'s own doc comment
+      // above for the full history/reasoning.
+      setNavOpen(true);
+      setPanelOpen(false);
+    }
   };
 
   /* "Unassign & Dismiss" — `InteractionNavItem` itself decides which of
@@ -3819,16 +3858,15 @@ export function AgentWorkspaceAdvancedPage({
     switchActiveInteraction(id);
     if (isNewInteraction) {
       setSidePanelOpen(lastSidePanelOpenChoice.current);
-      // Per explicit request ("when a new interaction comes in - if the
-      // left nav is closed, open it"), scoped to genuinely INBOUND arrivals
-      // only — a notification represents work that landed on its own, not
-      // something the agent just launched. Deliberately does NOT extend to
-      // `handleStartCall`/`handleQuickDial`/`handleRedial` (the
-      // agent-initiated launch paths) — that auto-open was explicitly
-      // dropped per an earlier request (see this same file's own
-      // `handleStartCall` doc comment above), and this stays scoped clear
-      // of reintroducing it there.
+      // Originally scoped to just this genuinely-INBOUND-arrival handler
+      // (opening the left nav only, not the shared right panel) — see
+      // `handleStartCall`'s own doc comment above for the later, broader
+      // request this now shares with every other `isNewInteraction` launch
+      // path in this file: open the left nav AND close the shared right
+      // panel, so any brand-new interaction (agent-initiated or inbound)
+      // gets the full-width record view.
       setNavOpen(true);
+      setPanelOpen(false);
     }
     setNotifications((prev) => prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n)));
   };
@@ -3902,7 +3940,13 @@ export function AgentWorkspaceAdvancedPage({
       );
     });
     switchActiveInteraction(id);
-    if (isNewInteraction) setSidePanelOpen(lastSidePanelOpenChoice.current);
+    if (isNewInteraction) {
+      setSidePanelOpen(lastSidePanelOpenChoice.current);
+      // Per explicit follow-up — see `handleStartCall`'s own doc comment
+      // above for the full history/reasoning.
+      setNavOpen(true);
+      setPanelOpen(false);
+    }
   };
 
   // Notifications' real content — same `useAgentNotificationsContent`
