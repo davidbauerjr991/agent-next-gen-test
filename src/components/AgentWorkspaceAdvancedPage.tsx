@@ -198,6 +198,7 @@ import {
   Headphones,
   ChevronRight,
   CircleAlert,
+  Settings,
   type LucideIcon,
 } from "lucide-react";
 
@@ -992,17 +993,17 @@ export function AgentWorkspaceAdvancedPage({
   );
   // Customers table's "+ Filter" state, lifted up here (not local to
   // `CustomersListView`) — that component sits inside the Desk dashboard's
-  // own branch of the `showSettings ? ... : activeInteraction ? ... : (
-  // dashboard )` conditional a few thousand lines down, which unmounts the
-  // WHOLE dashboard (including `CustomersListView`) the moment the agent
-  // starts/opens an interaction or Settings, not just when switching desk
-  // tabs. Keeping `CustomersListView` mounted-but-hidden across desk-tab
-  // switches (see its own render call site) only covers THAT narrower case;
-  // it still unmounts for real here, which would reset any state that
-  // lived in its own `useState`. Living up here instead, on a component
-  // that's never unmounted for the lifetime of this page, is what actually
-  // makes the filters survive navigating away to an interaction/Settings
-  // and back to Customers, not just switching between desk tabs.
+  // own branch of the `activeInteraction ? ... : ( dashboard )` conditional
+  // a few thousand lines down, which unmounts the WHOLE dashboard
+  // (including `CustomersListView`) the moment the agent starts/opens an
+  // interaction, not just when switching desk tabs. Keeping
+  // `CustomersListView` mounted-but-hidden across desk-tab switches (see
+  // its own render call site) only covers THAT narrower case; it still
+  // unmounts for real here, which would reset any state that lived in its
+  // own `useState`. Living up here instead, on a component that's never
+  // unmounted for the lifetime of this page, is what actually makes the
+  // filters survive navigating away to an interaction and back to
+  // Customers, not just switching between desk tabs.
   const [customerAddedFilterKeys, setCustomerAddedFilterKeys] = useState<string[]>([]);
   const [customerFilterValues, setCustomerFilterValues] = useState<Record<string, string[]>>({});
   // Which Customers-table row (if any) has its Customer Information panel
@@ -1559,23 +1560,13 @@ export function AgentWorkspaceAdvancedPage({
   // (and the "orphaned but not deleted" branches they gate) type-checking
   // correctly with no runtime behavior change.
   const [activeDeskTab] = useState<"home" | "customers" | "accounts" | "tickets" | "wem">("home");
-  /* Settings — a third top-level view alongside Desk/interaction-record,
-     shown in place of both in the content column when the Settings rail
-     item is clicked. Mutually exclusive with an active interaction: opening
-     one closes the other. Interaction → Settings is enforced below via an
-     effect (selecting/starting any interaction always takes over the
-     content column, same "one primary view at a time" rule Desk already
-     follows per `buildNavItems`'s `active: !hasActiveInteraction`); Settings
-     → interaction is enforced the other way, directly in the `LeftNav`
-     `onSettingsClick` handler, since there's only that one call site
-     (unlike `setActiveInteractionId`, which has several). */
-  const [showSettings, setShowSettings] = useState(false);
-
-  // Effect rather than touching every `setActiveInteractionId` call site
-  // individually.
-  useEffect(() => {
-    if (activeInteractionId) setShowSettings(false);
-  }, [activeInteractionId]);
+  /* Settings — per explicit request, no longer a separate top-level view
+     of its own. It's now a real entry in the shared "apps" panel system
+     (`PanelKey`/`PANEL_KEY_METADATA`/`contentByPanelKey` below) — the same
+     mechanism Search/Customers/WEM/etc. already use — opening in the one
+     shared docked panel, pinnable/reachable from "View All Apps" exactly
+     like every other app, rather than replacing Home/an active interaction
+     in the main content column. */
   const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
   const [agentStatus, setAgentStatus] = useState<AgentStatus>("unavailable");
   const [showWelcomeModal, setShowWelcomeModal] = useState(true);
@@ -1656,7 +1647,8 @@ export function AgentWorkspaceAdvancedPage({
     | "accounts"
     | "tickets"
     | "wem"
-    | "search";
+    | "search"
+    | "settings";
 
   const [panelOpen,      setPanelOpen]      = useState(false);
   const [panelMounted,   setPanelMounted]   = useState(false);
@@ -1722,14 +1714,11 @@ export function AgentWorkspaceAdvancedPage({
   const [selectedOutboundTeamId, setSelectedOutboundTeamId] = useState("");
   // Exit the shared panel's fullscreen whenever the agent navigates away
   // from the current main-content context — clicking a different
-  // assignment card, Home, or Settings (and starting/selecting any new
-  // interaction, e.g. via CreateNew/Outbound) all funnel through
-  // `activeInteractionId`/`showSettings` changing, so one effect here
-  // covers every one of those call sites instead of threading
-  // `setPanelFullScreen(false)` through each of them individually — same
-  // "effect rather than touching every call site" approach `showSettings`'s
-  // own reset (right above, near `activeInteractionId`'s own declaration)
-  // already uses. `panelVariant` itself is untouched, so the panel simply
+  // assignment card or Home (and starting/selecting any new interaction,
+  // e.g. via CreateNew/Outbound) all funnel through `activeInteractionId`
+  // changing, so one effect here covers every one of those call sites
+  // instead of threading `setPanelFullScreen(false)` through each of them
+  // individually. `panelVariant` itself is untouched, so the panel simply
   // resumes whichever of "docked"/"float" it was in before fullscreen,
   // exactly like exiting via the toggle button itself. NOTE: this alone
   // doesn't cover clicking the card that's ALREADY the active one — that
@@ -1739,7 +1728,7 @@ export function AgentWorkspaceAdvancedPage({
   useEffect(() => {
     setPanelFullScreen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeInteractionId, showSettings]);
+  }, [activeInteractionId]);
   // `containerRef` is the CONTENT container — everything to the right of
   // LeftNav (its own JSX comment further down calls it "Content area"),
   // also used elsewhere for AI/Notifications float positioning. This is
@@ -1892,6 +1881,11 @@ export function AgentWorkspaceAdvancedPage({
     tickets: false,
     wem: false,
     search: true,
+    // Per explicit request: Settings moved here from its own standalone
+    // LeftNav rail item — treated like any other app, unpinned by default,
+    // reachable via "View All Apps" (see PANEL_KEY_METADATA/
+    // contentByPanelKey below) and pinnable from there same as the rest.
+    settings: false,
   });
   const [appsMenuOpen, setAppsMenuOpen] = useState(false);
 
@@ -4092,6 +4086,11 @@ export function AgentWorkspaceAdvancedPage({
     // WEM = Workforce Engagement Management
     wem: blankPanelContent("WEM"),
     search: searchContent,
+    // Per explicit request: Settings folded into this same shared-panel
+    // system instead of its own separate main-content-column view — same
+    // blank-placeholder pattern as Customers/Accounts/Tickets/WEM above
+    // (no real settings content built yet).
+    settings: blankPanelContent("Settings"),
   };
   const activePanelContent = activePanelKey ? contentByPanelKey[activePanelKey] : null;
 
@@ -4104,11 +4103,9 @@ export function AgentWorkspaceAdvancedPage({
   // `panelOpen`) so this doesn't stay "true" for a panel that's actually
   // closed.
   const isCombinedPanelMode = isNavNarrow && panelOpen && panelVariant === "docked" && !!activePanelContent;
-  const mainRegionTabLabel = showSettings
-    ? "Settings"
-    : activeInteraction
-      ? `${activeInteraction.customerName ?? "Customer"} (${activeInteraction.customerId})`
-      : "Home";
+  const mainRegionTabLabel = activeInteraction
+    ? `${activeInteraction.customerName ?? "Customer"} (${activeInteraction.customerId})`
+    : "Home";
 
   // Clicking a button: re-clicking the CURRENTLY showing one closes the
   // shared container outright. Otherwise, if it's closed, open it docked
@@ -4157,10 +4154,11 @@ export function AgentWorkspaceAdvancedPage({
     tickets: { label: "Tickets", icon: Ticket },
     wem: { label: "WEM", icon: UserCog },
     search: { label: "Search", icon: Search },
+    settings: { label: "Settings", icon: Settings },
   };
   const PANEL_KEY_INITIAL_ORDER: PanelKey[] = [
     "search", "customers", "accounts", "tickets", "wem",
-    "screenpop", "conversations", "schedule", "notif",
+    "screenpop", "conversations", "schedule", "notif", "settings",
   ];
   // Live, user-reorderable order for both the header icon row AND the "View
   // All Apps" menu — ONE shared hook instance/state so dragging either
@@ -4848,9 +4846,7 @@ export function AgentWorkspaceAdvancedPage({
         <LeftNav
           items={buildNavItems(
             Boolean(activeInteraction),
-            () => { switchActiveInteraction(null); setShowSettings(false); },
-            showSettings,
-            () => { setShowSettings(true); switchActiveInteraction(null); }
+            () => switchActiveInteraction(null)
           )}
           open={navOpen}
           onToggle={() => setNavOpen((v) => !v)}
@@ -5346,32 +5342,7 @@ export function AgentWorkspaceAdvancedPage({
                     isCombinedPanelMode && narrowActiveRegion !== "main" && "hidden"
                   )}
                 >
-              {showSettings ? (
-                // ── Settings — a blank page for now (real settings content
-                // isn't built yet), same "just the header, blank body below"
-                // placeholder pattern the interaction record view below
-                // uses. Takes priority over both Desk and an active
-                // interaction — see the `showSettings` state's own doc
-                // comment for how the three views stay mutually exclusive.
-                // `key="settings"` (here and on the other two branches
-                // below) forces a fresh mount every time the agent switches
-                // between Settings/an interaction/the Desk dashboard, which
-                // is what makes `animate-in fade-in-0` actually replay on
-                // every switch — without a distinct key, React just patches
-                // the existing tree in place (same position, same type where
-                // it happens to coincide) and the "enter" animation only
-                // fires once, on this whole page's very first mount. Plain
-                // `div` instead of the bare `<>...</>` these three branches
-                // used to be — a Fragment contributes no box of its own for
-                // an animation/opacity class to apply to; classes here match
-                // the parent "Content column" div's own
-                // `flex flex-1 flex-col min-w-0 overflow-hidden` exactly, so
-                // this extra nesting level is layout-inert.
-                <div key="settings" className="flex flex-1 flex-col min-w-0 overflow-hidden animate-in fade-in-0 duration-200">
-                  {showPageHeader && <PageHeader title="Settings" />}
-                  <div className="flex-1 overflow-y-auto" />
-                </div>
-              ) : activeInteraction ? (
+              {activeInteraction ? (
                 // ── Active interaction's detail page — replaces the Desk
                 // dashboard the moment a new assignment is started/quick-
                 // dialed/redialed (see `activeInteraction` above). Just the

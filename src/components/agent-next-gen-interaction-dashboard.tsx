@@ -34,7 +34,6 @@ import {
 import { cn } from "@/lib/utils";
 import {
   Home,
-  Settings,
   ArrowUpDown,
   ChevronsDownUp,
   ChevronsUpDown,
@@ -481,34 +480,26 @@ export function interactionHasBreachedSla(interaction: Interaction, clockTick: n
    `activeInteraction` below) rather than a static array, so "Home" (the
    rail item — still routes to the Desk dashboard) stops showing as active —
    and becomes clickable to navigate back — the moment an assignment takes
-   over the main content area. "Settings" sits below Home as a plain rail
-   item (same convention as lyra-ux-templates' and the
-   lyra-ui template story's own `buildNavItems`/`NAV_ITEMS`, both of which
-   already end their rail with a Settings item) rather than a standalone
-   AppHeader icon — see the `actions` block below, which no longer has one.
-   Settings is now a real third view (see `showSettings` state) — clicking
-   it opens a blank "Settings" page in the content column and highlights
-   this rail item, same on/off-exclusivity as Home vs. an active
-   interaction. */
+   over the main content area.
+
+   Settings used to sit here too, as a second plain rail item below Home —
+   per explicit request ("move Settings from the left nav to be an item in
+   the app menu, treat it like any of the other apps"), it moved out
+   entirely into the shared "apps" panel system instead (`PanelKey`/
+   `PANEL_KEY_METADATA`/`contentByPanelKey`, each page's own file) — the
+   same mechanism Search/Customers/WEM/etc. already use. This rail is just
+   Home now. */
 
 export function buildNavItems(
   hasActiveInteraction: boolean,
-  onDeskClick: () => void,
-  showSettings: boolean,
-  onSettingsClick: () => void
+  onDeskClick: () => void
 ): NavItem[] {
   return [
     {
       icon: <Home className="h-4 w-4" strokeWidth={1.5} />,
       label: "Home",
-      active: !hasActiveInteraction && !showSettings,
+      active: !hasActiveInteraction,
       onClick: onDeskClick,
-    },
-    {
-      icon: <Settings className="h-4 w-4" strokeWidth={1.5} />,
-      label: "Settings",
-      active: showSettings,
-      onClick: onSettingsClick,
     },
   ];
 }
@@ -678,16 +669,18 @@ export function AssignmentsExpandCollapseAllButton({
    see that call site's own comment for "New Outbound"'s own back-and-forth
    on where it landed before settling back here), with the list of
    InteractionNavItem cards below it — both this caption and the cards
-   passed together as `header`. The Home/Settings rail renders LAST
-   (LeftNav's default, non-`itemsFirst` order), sticky to the BOTTOM of the
-   scroll region instead of the top, so this caption + the cards are what
-   scrolls, not the rail. `count` is `interactions.length`, the exact same
-   live list the cards render from, so the two numbers can't drift apart.
-   Collapsed to icon-only rail (`expanded` false), the text has nowhere to
-   go — but the sort button is a real standalone action, not just a label,
-   so it stays reachable as a lone icon directly below Settings (the last
-   `items` rail button above it) rather than disappearing along with the
-   text the way the rest of this caption does.
+   passed together as `header`. The Home rail (just Home now — Settings
+   moved out into the shared "apps" panel system, see `buildNavItems`'s own
+   doc comment) renders LAST (LeftNav's default, non-`itemsFirst` order),
+   sticky to the BOTTOM of the scroll region instead of the top, so this
+   caption + the cards are what scrolls, not the rail. `count` is
+   `interactions.length`, the exact same live list the cards render from,
+   so the two numbers can't drift apart. Collapsed to icon-only rail
+   (`expanded` false), the text has nowhere to go — but the sort button is
+   a real standalone action, not just a label, so it stays reachable as a
+   lone icon directly below Home (the `items` rail button above it) rather
+   than disappearing along with the text the way the rest of this caption
+   does.
 
    Sort button only shows once there's actually something to sort — with
    zero or one assignment there's only one possible order either way, so
