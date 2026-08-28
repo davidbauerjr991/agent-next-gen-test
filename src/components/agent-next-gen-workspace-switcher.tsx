@@ -15,22 +15,30 @@ import appIcon from "@/assets/app-icon.svg";
    of the three Agent Workspace page files) since all three wire it up
    identically — only `appName`/`appMenuGroups` differ per page.
 
-   `expanded` — per a further explicit request ("show the full title of the
-   selected app when the left nav is expanded"): drives `AppName`'s own real
-   `compact` prop (`compact={!expanded}`), same convention `CreateNew` (this
-   file's neighbor in `pinnedHeader`) already follows. Callers pass
-   `expanded={navOpen}` for INLINE mode; LeftNav's overlay/narrow mode
-   auto-clones its own `expanded={hoverOpen}` onto whatever `footer` renders
-   instead (see left-nav.tsx's `injectExpanded`), overriding whatever was
-   passed at the call site — so the icon still correctly expands on hover
-   in that mode without any extra wiring here. */
+   Stays icon-only (`compact`) always now — a follow-up request briefly had
+   this show the full name+chevron while the nav was expanded, then reverted
+   that per an explicit "actually, don't show the name" follow-up. `expanded`
+   is kept, but now only controls ALIGNMENT: LeftNav's own `footer` wrapper
+   (left-nav.tsx) always centers its content (`justify-center`, a protected
+   primitive — not something to override), which is invisible while the nav
+   is the fixed 60px icon rail, but would visually center this icon in the
+   middle of the wider 256px expanded rail instead of lining it up with
+   every other left-aligned control there (New Outbound, the nav items).
+   `expanded` stretches this component's own wrapper to full width and
+   left-justifies the icon inside it to compensate, without touching
+   LeftNav's own centering. Callers pass `expanded={navOpen}` for INLINE
+   mode; LeftNav's overlay/narrow mode auto-clones its own
+   `expanded={hoverOpen}` onto whatever `footer` renders instead (see
+   left-nav.tsx's `injectExpanded`), overriding whatever was passed at the
+   call site — so alignment still correctly follows hover state in that mode
+   without any extra wiring here. */
 export interface WorkspaceSwitcherIconProps {
   appMenuOpen: boolean;
   onAppMenuOpenChange: (open: boolean) => void;
   appMenuGroups: AppMenuGroup[];
-  /** The current page's own app name (e.g. "Agent Workspace 2.0 Advanced") — used as both the trigger's accessible label and (only while collapsed) the popover's header. */
+  /** The current page's own app name (e.g. "Agent Workspace 2.0 Advanced") — used as both the trigger's accessible label and the popover's header (this trigger is always icon-only, so the name always lives in the popover header, never the trigger itself). */
   appName: string;
-  /** Whether the left nav is currently expanded — see doc comment above. Defaults to collapsed/icon-only when omitted. */
+  /** Whether the left nav is currently expanded — see doc comment above (alignment only; the trigger itself always stays icon-only). Defaults to collapsed/centered when omitted. */
   expanded?: boolean;
 }
 
@@ -42,37 +50,34 @@ export function WorkspaceSwitcherIcon({
   expanded = false,
 }: WorkspaceSwitcherIconProps) {
   return (
-    <PopoverPrimitive.Root open={appMenuOpen} onOpenChange={onAppMenuOpenChange}>
-      <PopoverPrimitive.Trigger asChild>
-        <AppName
-          icon={<img src={appIcon} alt={appName} className="h-6 w-6" />}
-          name={appName}
-          compact={!expanded}
-          aria-expanded={appMenuOpen}
-        />
-      </PopoverPrimitive.Trigger>
-      <PopoverPrimitive.Portal>
-        <PopoverPrimitive.Content
-          // Anchored at the bottom of the screen now (LeftNav's footer),
-          // not the top of the header — opens upward (`side="top"`) so it
-          // grows into the viewport instead of off the bottom edge. Same
-          // reasoning flips the animation direction below (slide in/out
-          // from the bottom — i.e. from the trigger itself — instead of
-          // from the top, which the original header-anchored version used).
-          side="top"
-          align="start"
-          sideOffset={6}
-          onOpenAutoFocus={(e: Event) => e.preventDefault()}
-          className="z-[9999] animate-in fade-in-0 slide-in-from-bottom-2 duration-150 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-bottom-1 data-[state=closed]:duration-100"
-        >
-          {/* `header` only needed while the trigger is compact (icon-only)
-              — same "name moves into the menu header" convention AppName's
-              own `compact` doc comment describes. Once the trigger shows
-              the full name itself (expanded), repeating it in the popover
-              header would be redundant. */}
-          <AppMenu groups={appMenuGroups} footer={<CXoneLogo />} header={!expanded ? appName : undefined} />
-        </PopoverPrimitive.Content>
-      </PopoverPrimitive.Portal>
-    </PopoverPrimitive.Root>
+    <div className={expanded ? "flex w-full justify-start" : undefined}>
+      <PopoverPrimitive.Root open={appMenuOpen} onOpenChange={onAppMenuOpenChange}>
+        <PopoverPrimitive.Trigger asChild>
+          <AppName
+            icon={<img src={appIcon} alt={appName} className="h-6 w-6" />}
+            name={appName}
+            compact
+            aria-expanded={appMenuOpen}
+          />
+        </PopoverPrimitive.Trigger>
+        <PopoverPrimitive.Portal>
+          <PopoverPrimitive.Content
+            // Anchored at the bottom of the screen now (LeftNav's footer),
+            // not the top of the header — opens upward (`side="top"`) so it
+            // grows into the viewport instead of off the bottom edge. Same
+            // reasoning flips the animation direction below (slide in/out
+            // from the bottom — i.e. from the trigger itself — instead of
+            // from the top, which the original header-anchored version used).
+            side="top"
+            align="start"
+            sideOffset={6}
+            onOpenAutoFocus={(e: Event) => e.preventDefault()}
+            className="z-[9999] animate-in fade-in-0 slide-in-from-bottom-2 duration-150 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-bottom-1 data-[state=closed]:duration-100"
+          >
+            <AppMenu groups={appMenuGroups} footer={<CXoneLogo />} header={appName} />
+          </PopoverPrimitive.Content>
+        </PopoverPrimitive.Portal>
+      </PopoverPrimitive.Root>
+    </div>
   );
 }
