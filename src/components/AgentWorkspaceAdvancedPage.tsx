@@ -4147,43 +4147,6 @@ export function AgentWorkspaceAdvancedPage({
       isRowOpen: (row) => interactions.some((i) => i.customerId === row.contactNumber),
     },
   });
-  // Per explicit request ("make the page headers that are fixed at the
-  // top scroll out of view ... test it on the Home container first"),
-  // simplified per a direct follow-up ("I want the page header in home
-  // to basically be not fixed, then when scrolled back up make it
-  // fixed") after an earlier measured-height collapse attempt worked
-  // but was slow to land and more machinery than this needed. Rather
-  // than animating the real header's own height to 0 in place, the
-  // header now simply lives INSIDE the Home dashboard's own scrollable
-  // body (see `homeContent`'s `body`, the first child of the
-  // `overflow-y-auto` div below) as a normal, non-fixed, in-flow
-  // element — scrolling down carries it away exactly like any other
-  // content on the page, no JS or height measurement involved.
-  // `homeStickyHeaderVisible` instead controls a separate, small
-  // "fixed" duplicate header (absolutely positioned over the panel —
-  // see `primaryPanelView` below) that slides in only while the user is
-  // scrolling UP and not already near the top (where the in-flow
-  // header is already visible on its own), and slides back out on
-  // scroll-down or once back near the top. Gated to
-  // `activePanelKey === "home"` at both render sites — other panels
-  // (and Home's own non-"home" desk tabs, e.g. Customers, which scroll
-  // a different element entirely) are untouched, per the original
-  // "test it on the Home container first" request.
-  const [homeStickyHeaderVisible, setHomeStickyHeaderVisible] = useState(false);
-  const homeScrollTopRef = useRef(0);
-  const handleHomeDashboardScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const top = e.currentTarget.scrollTop;
-    const delta = top - homeScrollTopRef.current;
-    if (top < 8) {
-      setHomeStickyHeaderVisible(false);
-    } else if (delta > 4) {
-      setHomeStickyHeaderVisible(false);
-    } else if (delta < -4) {
-      setHomeStickyHeaderVisible(true);
-    }
-    homeScrollTopRef.current = top;
-  };
-
   // Home — per explicit request, this now holds the exact dashboard
   // content that used to render directly as this page's default main
   // view (see the fallback comment further down, where that branch used
@@ -4370,17 +4333,7 @@ export function AgentWorkspaceAdvancedPage({
                 </div>
               ) : (
                 <>
-                <div
-                  key={activeDeskTab}
-                  className="flex flex-1 flex-col min-w-0 overflow-y-auto px-6 py-6 animate-in fade-in-0 duration-200"
-                  onScroll={handleHomeDashboardScroll}
-                >
-                  {/* In-flow, non-fixed header — see `handleHomeDashboardScroll`'s
-                      own doc comment. Deliberately plain (no icon/actions/badge:
-                      `homeContent` itself never sets any), and rendered here
-                      rather than in the panel chrome above so it scrolls away
-                      with the rest of this content instead of staying pinned. */}
-                  <ContainerHeader className="min-h-[54px] py-4 -mx-6 px-6 mb-2" title="Home" />
+                <div key={activeDeskTab} className="flex flex-1 flex-col min-w-0 overflow-y-auto px-6 py-6 animate-in fade-in-0 duration-200">
                   <div className="w-full max-w-[1200px] mx-auto lyra-container-grid-wrap">
                     {showPageHeader && (
                       /* Home identity row — per explicit follow-up ("revert the header to
@@ -5347,46 +5300,15 @@ export function AgentWorkspaceAdvancedPage({
   // normal `<Container>` + `sharedPanel` pairing again.
   const primaryPanelView = panelMounted && activePanelContent ? (
     <div className="flex flex-col flex-1 overflow-hidden relative rounded-lyra-lg border border-lyra-border-subtle bg-lyra-bg-surface-base">
-      {/* Per explicit request ("make the page headers that are fixed at
-          the top scroll out of view ... test it on the Home container
-          first"), simplified per a direct follow-up ("I want the page
-          header in home to basically be not fixed, then when scrolled
-          back up make it fixed") — this is the actual default "no
-          active interaction" view (see this const's own doc comment
-          just above), a SEPARATE render path from the
-          `sharedPanel`/`Draggable`-hosted `ContainerHeader`, which only
-          renders once an interaction is active (untouched by this
-          feature — see that instance's own plain, unwrapped render).
-          For every panel except Home, this renders exactly as before.
-          For Home, this slot renders nothing instead — the real header
-          now lives in-flow inside the scrollable body (see
-          `homeContent`'s own `body`) so it scrolls away normally — and
-          this small fixed/absolute duplicate slides in on top of the
-          panel only while `homeStickyHeaderVisible` is true (scrolling
-          up, not already near the top; see `handleHomeDashboardScroll`'s
-          own doc comment for the full rationale). */}
-      {activePanelKey !== "home" && (
-        <ContainerHeader
-          className={cn("min-h-[54px]", activePanelKey === "search" ? "pt-4 pb-0" : "py-4")}
-          title={activePanelContent.title}
-          titleBadge={activePanelContent.titleBadge}
-          titleClassName={activePanelContent.titleClassName ?? "lyra-heading-lg"}
-          icon={activePanelContent.dockedIcon}
-          bordered={!activePanelContent.headerContent}
-          actions={activePanelContent.headerActions}
-        />
-      )}
-      {activePanelKey === "home" && (
-        <div
-          className="absolute top-0 left-0 right-0 z-10 bg-lyra-bg-surface-base shadow-md"
-          style={{
-            transform: homeStickyHeaderVisible ? "translateY(0)" : "translateY(-100%)",
-            transition: "transform 200ms ease-in-out",
-          }}
-        >
-          <ContainerHeader className="min-h-[54px] py-4" title="Home" />
-        </div>
-      )}
+      <ContainerHeader
+        className={cn("min-h-[54px]", activePanelKey === "search" ? "pt-4 pb-0" : "py-4")}
+        title={activePanelContent.title}
+        titleBadge={activePanelContent.titleBadge}
+        titleClassName={activePanelContent.titleClassName ?? "lyra-heading-lg"}
+        icon={activePanelContent.dockedIcon}
+        bordered={!activePanelContent.headerContent}
+        actions={activePanelContent.headerActions}
+      />
       {activePanelContent.headerContent && (
         activePanelKey === "search" ? (
           activePanelContent.headerContent
