@@ -263,17 +263,6 @@ const SHARED_CONTENT_MIN_VISUAL_WIDTH = 362;
 // `min-w-[…]` string with a plain numeric `minWidthPx` for JS math) — keep
 // that literal in sync with this constant by hand if it ever changes.
 const INTERACTION_MAIN_CONTENT_MIN_WIDTH = SHARED_CONTENT_MIN_VISUAL_WIDTH + 12;
-// Per explicit request ("switch the containers for the customer
-// information and the interaction ... move the interaction into a
-// side panel and move the customer information into the main panel -
-// do this for advanced only"): the interaction column (record
-// header + transcript + composer) is now a fixed-width column
-// instead of the flex-1 growing one — Customer Information now takes
-// that role instead (see `sidePanelWidth`'s own doc comment further
-// down, and the "Row: Customer Information panel + everything else"
-// render site). Advanced-only: `AgentNextGenPage.tsx`/
-// `AgentWorkspace2WithDeskPage.tsx` are untouched.
-const INTERACTION_PANEL_WIDTH = 400;
 
 // Screen Pop — visual mock of an external app's login screen, shown in
 // place of a real embed. Real screen-pop targets like Salesforce/Zendesk
@@ -1788,22 +1777,6 @@ export function AgentWorkspaceAdvancedPage({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  // Per explicit request ("switch the containers for the customer
-  // information and the interaction ... move the customer information
-  // into the main panel — advanced only"): keeps `sidePanelWidth` (see
-  // that state's own doc comment) tracking "fill whatever's left of
-  // this row once the fixed-width interaction column takes its share"
-  // as the row itself resizes — skipped once the agent has manually
-  // dragged the panel's own resize handle (`sidePanelWidthManuallySet`),
-  // so a deliberate resize sticks rather than snapping back on the next
-  // container-width change. `325` matches `CustomerInformationSidePanel`'s
-  // own hardcoded `minWidth` (agent-next-gen-customer-info-panel.tsx) —
-  // never auto-fill to something narrower than what it'll clamp to
-  // anyway.
-  useEffect(() => {
-    if (sidePanelWidthManuallySet.current) return;
-    setSidePanelWidth(Math.max(325, sidePanelContainerWidth - INTERACTION_PANEL_WIDTH));
-  }, [sidePanelContainerWidth]);
   // The "Body: LeftNav + Content" row (both the nav and everything to its
   // right sit inside this one div, see its own JSX comment further down) —
   // measured via ResizeObserver so `isNavNarrow` below reacts to this row's
@@ -2042,25 +2015,7 @@ export function AgentWorkspaceAdvancedPage({
   // 340 — explicit starting width for the SidePanel version (was 425,
   // matching the old InteriorPanel's `maxWidth` default) — per explicit
   // request.
-  // Per explicit request ("...move the customer information into the
-  // main panel — advanced only"): defaults this panel to fill
-  // essentially all the space left over by the now-fixed-width
-  // interaction column (`INTERACTION_PANEL_WIDTH`) instead of the old
-  // narrow ~340px default, so it reads as the page's MAIN content
-  // rather than a side panel — same real, unmodified, resizable
-  // `SidePanel` underneath (`CustomerInformationSidePanel`, which this
-  // page doesn't fork), just a different starting/auto-tracked size.
-  // Initial `useState` value is just a reasonable guess for the first
-  // paint, before `sidePanelContainerWidth` has actually been measured
-  // (see the effect just below `sidePanelWidthManuallySet`, further
-  // down this file) — that effect immediately corrects it to the exact
-  // right value once real measurements are in.
-  const [sidePanelWidth, setSidePanelWidth] = useState(900);
-  // Tracks whether the agent has ever manually dragged this panel's own
-  // resize handle — once true, the auto-fill effect below stops
-  // overwriting `sidePanelWidth` on every container resize, so a
-  // deliberate resize sticks instead of snapping back.
-  const sidePanelWidthManuallySet = useRef(false);
+  const [sidePanelWidth, setSidePanelWidth] = useState(340);
   // Full-screen toggle (per explicit request) — see
   // `CustomerInformationSidePanel`'s own doc comment for how this actually
   // renders (an unpinned overlay sized to the parent Container's own
@@ -6030,24 +5985,13 @@ export function AgentWorkspaceAdvancedPage({
           {activeInteraction ? (
 <Container className="flex flex-col flex-1 overflow-hidden relative">
 
-            {/* Row: interaction column (left, now FIXED-width — see
-                `INTERACTION_PANEL_WIDTH`'s own doc comment) + Customer
-                Information (right, now the flex-growing MAIN panel — see
-                `sidePanelWidth`'s own doc comment). Swapped per explicit
-                request ("switch the containers for the customer
-                information and the interaction ... move the interaction
-                into a side panel and move the customer information into
-                the main panel — do this for advanced only"); DOM order is
-                unchanged (this column was always first/left, Customer
-                Information was already docked right of it — see that
-                panel's own wrapper doc comment further down — so no
-                reordering was needed, just which one is fixed vs.
-                growing). Not flattened into Container itself since
-                `isCombinedPanelMode`'s tab row must stay OUTSIDE the
-                panel's reach — only the column to its right stacks
-                vertically. */}
+            {/* Row: Customer Information panel (left) + everything else
+                (tab row + content column, stacked). Not flattened into
+                Container itself since `isCombinedPanelMode`'s tab row must
+                stay OUTSIDE the panel's reach — only the column to its
+                right stacks vertically. */}
             <div className="flex flex-1 overflow-hidden min-h-0">
-              <div className="flex flex-col shrink-0 overflow-hidden" style={{ width: INTERACTION_PANEL_WIDTH }}>
+              <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
 
                 {/* Below 768px with a docked panel open: a second region
                     (`activePanelContent.title`, e.g. "Notifications") sits
@@ -7314,7 +7258,7 @@ export function AgentWorkspaceAdvancedPage({
                   // the whole time). Mirrored one level down on
                   // `SidePanel`'s own pinned-branch outer div
                   // (side-panel.tsx), which had the identical gap.
-                  className="flex-1 min-w-0 h-full z-[5] animate-in fade-in-0 duration-200 delay-150 fill-mode-backwards"
+                  className="shrink-0 h-full z-[5] animate-in fade-in-0 duration-200 delay-150 fill-mode-backwards"
                 >
                 <CustomerInformationSidePanel
                   open={sidePanelOpen}
@@ -7363,10 +7307,7 @@ export function AgentWorkspaceAdvancedPage({
                   // rendering covers the whole container edge to edge.
                   width={sidePanelFullScreen ? sidePanelContainerWidth : sidePanelWidth}
                   containerWidth={sidePanelContainerWidth}
-                  onWidthChange={(w) => {
-                    sidePanelWidthManuallySet.current = true;
-                    setSidePanelWidth(w);
-                  }}
+                  onWidthChange={setSidePanelWidth}
                   onResizeStateChange={setSidePanelResizing}
                   onAddToast={addToast}
                   recordDraft={activeCustomerRecordDraft}
