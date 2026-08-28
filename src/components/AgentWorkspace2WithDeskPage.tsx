@@ -2475,7 +2475,6 @@ export function AgentWorkspace2WithDeskPage({
   useEffect(() => {
     if (activeInteractionId) setShowSettings(false);
   }, [activeInteractionId]);
-  const [windowWidth, setWindowWidth] = useState(() => window.innerWidth);
   const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
   const [agentStatus, setAgentStatus] = useState<AgentStatus>("unavailable");
   // 5-real-seconds-after-"available" trigger for the Marcus Webb scripted
@@ -3242,17 +3241,9 @@ export function AgentWorkspace2WithDeskPage({
     setCustomerInfoPreviewOpen(false);
   }, [activeInteraction?.id, sidePanelOpen]);
 
-  // Track window width — still drives `isCompactHeader` below.
-  useEffect(() => {
-    const onResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-
   // Nav overlay breakpoint — `bodyContainerWidth` (see `bodyContainerRef`'s
   // own doc comment up by `containerRef`), not the browser viewport.
   const isNavNarrow = bodyContainerWidth < 768;
-  const isCompactHeader = windowWidth < 760;
 
   // Auto-collapse the expanded nav when the container drops below 768px
   useEffect(() => {
@@ -5637,13 +5628,46 @@ export function AgentWorkspace2WithDeskPage({
           // to decide whether the icon row on the other side of the header
           // is crowding it, so icons only hide once there's a real
           // overlap risk instead of a fixed viewport-width guess.
-          <div ref={appNameMeasureRef} className="flex items-center">
+          <div ref={appNameMeasureRef} className="flex items-center gap-2">
+            <AgentProfile
+              name="John Smith"
+              initials="JS"
+              status={agentStatus}
+              onStatusChange={handleStatusChange}
+              onDarkModeToggle={handleDarkModeToggle}
+              isDarkMode={darkMode}
+              timer={formattedTimer}
+              onAgentLegStatusChange={fireAgentLegStatusToast}
+              connectAgentLegSignal={connectAgentLegSignal}
+              initialAgentLegStatus={initialAgentLegStatus}
+              // Standalone AppHeader "?" icon removed — this app now uses
+              // `AgentProfile`'s own conditional "Help" row instead (renders
+              // below "Agent Leg Disconnected" whenever `onHelpClick` is
+              // passed; see agent-profile.tsx). Same destination/new-tab
+              // behavior as the removed icon button.
+              onHelpClick={() => window.open("https://help.nicecxone.com/content/agent/cxoneagent/cxoneagent.htm?cshid=CXoneAgent", "_blank", "noopener,noreferrer")}
+              onLogOut={() => onNavigate?.("login")}
+              // Per explicit request: this prototype has no real
+              // integrations to surface here, so the status menu's
+              // "Connected Apps" row (which otherwise always renders, even
+              // with a permanently-empty "0" badge — see `hideConnectedApps`'s
+              // own doc comment, agent-profile.tsx) is hidden outright.
+              hideConnectedApps
+            />
+            {/* Agent Workspace 2.0 | Advanced | Premium switcher — moved
+                here (was the header's own appName trigger) now that
+                AgentProfile occupies the far-left header slot. AgentProfile
+                is a self-contained lyra-ui component with no prop to
+                redirect its own avatar click to a different menu, so this
+                stays a separate, always-compact (icon-only, AppName's own
+                `compact` mode) trigger next to it rather than overloading
+                the avatar's click. Per explicit request. */}
             <PopoverPrimitive.Root open={appMenuOpen} onOpenChange={setAppMenuOpen}>
               <PopoverPrimitive.Trigger asChild>
                 <AppName
                   icon={<img src={appIcon} alt="Agent Workspace 2.0 Premium" className="h-6 w-6" />}
                   name="Agent Workspace 2.0 Premium"
-                  compact={isCompactHeader}
+                  compact
                   aria-expanded={appMenuOpen}
                 />
               </PopoverPrimitive.Trigger>
@@ -5658,7 +5682,7 @@ export function AgentWorkspace2WithDeskPage({
                   <AppMenu
                     groups={appMenuGroups}
                     footer={<CXoneLogo />}
-                    header={isCompactHeader ? "Agent Workspace 2.0 Premium" : undefined}
+                    header="Agent Workspace 2.0 Premium"
                   />
                 </PopoverPrimitive.Content>
               </PopoverPrimitive.Portal>
@@ -5829,32 +5853,6 @@ export function AgentWorkspace2WithDeskPage({
                 />
               </span>
             </Tooltip>
-            <AgentProfile
-              name="John Smith"
-              initials="JS"
-              status={agentStatus}
-              onStatusChange={handleStatusChange}
-              onDarkModeToggle={handleDarkModeToggle}
-              isDarkMode={darkMode}
-              timer={formattedTimer}
-              onAgentLegStatusChange={fireAgentLegStatusToast}
-              connectAgentLegSignal={connectAgentLegSignal}
-              initialAgentLegStatus={initialAgentLegStatus}
-              // Standalone AppHeader "?" icon removed — this app now uses
-              // `AgentProfile`'s own conditional "Help" row instead (renders
-              // below "Agent Leg Disconnected" whenever `onHelpClick` is
-              // passed; see agent-profile.tsx). Same destination/new-tab
-              // behavior as the removed icon button.
-              onHelpClick={() => window.open("https://help.nicecxone.com/content/agent/cxoneagent/cxoneagent.htm?cshid=CXoneAgent", "_blank", "noopener,noreferrer")}
-              onLogOut={() => onNavigate?.("login")}
-              // Per explicit request: this prototype has no real
-              // integrations to surface here, so the status menu's
-              // "Connected Apps" row (which otherwise always renders, even
-              // with a permanently-empty "0" badge — see `hideConnectedApps`'s
-              // own doc comment, agent-profile.tsx) is hidden outright.
-              hideConnectedApps
-              className="ml-1"
-            />
           </>
         }
       />
