@@ -199,7 +199,6 @@ import {
   CircleAlert,
   Home,
   Settings,
-  Info,
   type LucideIcon,
 } from "lucide-react";
 
@@ -5361,38 +5360,6 @@ export function AgentWorkspaceAdvancedPage({
               // own doc comment, agent-profile.tsx) is hidden outright.
               hideConnectedApps
             />
-            {/* Per explicit request ("put the agent John Smith and user
-                name in the tooltip when the status is hovered"):
-                `AgentProfile` (lyra-ui, agent-profile.tsx) hardcodes its own
-                "Agent Status and More" tooltip with no prop to inject extra
-                content into it — its `name` prop above isn't even wired
-                into that tooltip, or anywhere else in its render, today.
-                Not something to fork/hack lyra-ui to work around (per this
-                app's own standing rule) — this is a second, separate hover
-                trigger next to it instead, not a replacement for that one;
-                hovering elsewhere on `AgentProfile` itself still shows only
-                its own "Agent Status and More" tooltip, unchanged. Reuses
-                the exact same `CURRENT_AGENT_FIRST_NAME`/`_LAST_NAME`/
-                `CURRENT_AGENT_ID` the Home identity row already renders
-                (agent-next-gen-shared-utils.ts), so the two stay in sync
-                rather than hardcoding a second copy of "John Smith". */}
-            <Tooltip
-              content={
-                <div className="flex flex-col gap-0.5">
-                  <span className="lyra-body-sm-emphasis">{`Agent ${CURRENT_AGENT_FIRST_NAME} ${CURRENT_AGENT_LAST_NAME}`}</span>
-                  <span className="lyra-body-sm">{`User Name: ${CURRENT_AGENT_ID}`}</span>
-                </div>
-              }
-              placement="bottom"
-            >
-              <span
-                tabIndex={0}
-                aria-label={`Agent ${CURRENT_AGENT_FIRST_NAME} ${CURRENT_AGENT_LAST_NAME}, User Name: ${CURRENT_AGENT_ID}`}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lyra-sm text-lyra-fg-secondary cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lyra-border-focus"
-              >
-                <Info className="h-4 w-4" strokeWidth={1.5} aria-hidden="true" />
-              </span>
-            </Tooltip>
           </div>
         }
         actions={
