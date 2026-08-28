@@ -4037,174 +4037,6 @@ export function AgentNextGenPage({
     title: "Home",
     body: (
 <div key="dashboard" className="flex flex-1 flex-col min-w-0 overflow-hidden animate-in fade-in-0 duration-200">
-                  {showPageHeader && (
-                    // Dashboard header — per explicit follow-up request,
-                    // back in this top, non-scrolling slot (was briefly
-                    // moved down into the dashboard body itself so it
-                    // scrolled away with the rest of the content — see
-                    // §116/BEHAVIOR.md for that whole history; "I want it
-                    // to be a page header" undid that move, pinning it
-                    // above the scrollable body again like every other
-                    // real record/page header in this app). This slot has
-                    // no `TabList` beneath it (see `activeDeskTab`'s own
-                    // doc comment) — no `bordered={false}` override the
-                    // way the interaction record header (`recordHeaderRef`
-                    // call site above) needs for a directly-adjoining tab/
-                    // session row, so `PageHeader`'s own default border
-                    // stays on to visually separate this header from the
-                    // scrollable "Body row" beneath it.
-                    //
-                    // Title/subtitle use the identity-header treatment
-                    // (title "Agent {name}", subhead "Agent ID:
-                    // {agentId}" + Connect Agent Leg link/Connecting.../
-                    // Connection Lag Time) instead of the former time-of-
-                    // day greeting ("Good {period}, {name}" + date) — per
-                    // explicit request to bring lyra-ui's "Agent Home
-                    // Dashboard" Storybook story's `greeting=false` header
-                    // (agent-dashboard.tsx's `AgentDashboardHeader`/
-                    // `AgentDashboard`, `resolveGreetingContent`'s
-                    // `greeting=false` branch) into this app's real
-                    // header. `agentLegStatus` (declared above, alongside
-                    // `connectAgentLegSignal`) is a genuine live mirror of
-                    // `AgentProfile`'s own real agent-leg state, not a
-                    // separate demo toggle — this header always renders
-                    // the identity treatment, there's no `greeting`
-                    // control here the way the lyra-ui story has one. No
-                    // `titleSize="2xl"` override here either, matching
-                    // lyra-ui's own `AgentDashboardHeader` (the real,
-                    // pinned header variant, as opposed to `AgentDashboard`'s
-                    // own inline scrollable-body greeting, which keeps
-                    // `2xl`) — this now reads at `PageHeader`'s own
-                    // default size, the same as the interaction record
-                    // header above and every other real header in the app.
-                    //
-                    // Per explicit follow-up ("add 'Agent' back to the page
-                    // header and wrap the personal queue chip at 400px
-                    // parent container width — confirm you are using the
-                    // page header component for all 3 workspaces"): back to
-                    // a real `PageHeader` here — §119's plain hand-built
-                    // row (built to float the chip right without a
-                    // `PageHeader`) is reverted. All 3 tiers now render
-                    // this identity header via the real `PageHeader`
-                    // component (2.0 here; Premium/Advanced — see either
-                    // file's own doc comment near their identical headers).
-                    // Title restored to `Agent {name}` (was briefly just
-                    // the plain name per §118's lyra-ui re-sync). The
-                    // Personal Queue chip lives in `actions` (unchanged
-                    // content/color-tiers/click handler — see its own
-                    // inline doc comment below), which gets the "wrap at
-                    // 400px" behavior for free: `PageHeader`'s own
-                    // `@container (max-width: 400px)` rule (lyra-tokens.css,
-                    // scoped to `:not(.lyra-page-header-has-suffix)`, i.e.
-                    // exactly the `actions`-not-`titleSuffix` case this
-                    // header now is) already drops `actions` to its own row
-                    // below the title/subhead once this header's own width
-                    // crosses that threshold, rather than squeezing the
-                    // title/subhead down to a few truncated characters
-                    // sharing the row with it — no new CSS needed, this
-                    // header just needed to be a real `PageHeader` again to
-                    // pick it up.
-                    <PageHeader
-                      title={`Agent ${CURRENT_AGENT_FIRST_NAME} ${CURRENT_AGENT_LAST_NAME}`}
-                      subtitle={`User Name: ${CURRENT_AGENT_ID}`}
-                      actions={
-                        // Per explicit request ("add a chip to the top
-                        // right (where the Assignments Completed today
-                        // used to be) that says '{N} Active Assignments'
-                        // and when clicked open the left rail") — this
-                        // is the exact spot the `SHOW_RESOLVED_TODAY_CHIP`-
-                        // gated Badge used to occupy (still hidden, see
-                        // that flag's own doc comment, agent-next-gen-
-                        // shared-utils.ts). Unlike that static badge,
-                        // this one is a real `Button` (Rule zero — no
-                        // hand-rolled `<button>`), styled to read as a
-                        // chip via the same `bg-lyra-status-*-subtle`/
-                        // `text-lyra-status-*-strong` pairing other info
-                        // callouts in this file already use as plain
-                        // classNames (not just inline style).
-                        // `interactions.length` is the exact same count
-                        // `AssignmentsSectionCaption` below renders as
-                        // "({count})" for the LeftNav's own caption —
-                        // one live number, two places it shows up.
-                        // `setNavOpen((v) => !v)` toggles the LeftNav
-                        // rail (its 52px/256px collapsed/expanded states
-                        // — see `navOpen`'s own declaration) exactly like
-                        // clicking its own collapse/expand toggle would.
-                        //
-                        // Label reads "Personal Queue: {N}", "Empty" in
-                        // place of a bare "0" once the queue has nothing
-                        // in it. The chip's color reflects the queue's
-                        // own worst-case state — success (green) once
-                        // genuinely empty, warning (amber) once it holds
-                        // any assignment at all, escalating to critical
-                        // (red) the moment ANY assignment has actually
-                        // breached SLA (not just nearing it) — same
-                        // success/warning/critical three-tier language
-                        // `getAwaitingSeverity`/the record-header channel
-                        // tab's own escalation already use, rolled up
-                        // across the whole queue. `hasBreachedSlaAssignment`
-                        // (declared alongside `clockTick` above) drives
-                        // both the red tier and the trailing `CircleAlert`
-                        // "!" mark — the same icon `ChannelTab` (lyra-ui,
-                        // channel-row.tsx) already reserves for a
-                        // genuinely breached (not just late) channel.
-                        //
-                        // Per explicit follow-up ("move connection lag
-                        // time / connect agent leg below Personal Queue
-                        // chip in all 3"), the tri-state agent-leg
-                        // indicator (Connect Agent Leg link/Connecting.../
-                        // Connection Lag Time) moved out of the subtitle
-                        // line (below the title, next to "User Name:
-                        // {id}") and down here instead, stacked directly
-                        // under the chip in this same `actions` slot —
-                        // `flex-col items-end` right-aligns both under one
-                        // another instead of the row's normal side-by-side
-                        // layout.
-                        <div className="flex flex-col items-end gap-1">
-                          <Tooltip content="Toggle Assignment Panel" placement="bottom" asLabel>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setNavOpen((v) => !v)}
-                              className={cn(
-                                "h-6 shrink-0 gap-0.5 rounded-lyra-md px-2 lyra-body-md-emphasis",
-                                hasBreachedSlaAssignment
-                                  ? "bg-lyra-status-critical-subtle text-lyra-status-critical-strong hover:bg-lyra-status-critical-subtle hover:opacity-80"
-                                  : interactions.length > 0
-                                  ? "bg-lyra-status-warning-subtle text-lyra-status-warning-strong hover:bg-lyra-status-warning-subtle hover:opacity-80"
-                                  : "bg-lyra-status-success-subtle text-lyra-status-success-strong hover:bg-lyra-status-success-subtle hover:opacity-80"
-                              )}
-                            >
-                              Personal Queue: {interactions.length > 0 ? interactions.length : "Empty"}
-                              {hasBreachedSlaAssignment && (
-                                <CircleAlert className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" />
-                              )}
-                              <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" />
-                            </Button>
-                          </Tooltip>
-                          {agentLegStatus === "connected" ? (
-                            <span className="lyra-body-sm text-lyra-fg-secondary">{`Connection Lag Time: ${CURRENT_AGENT_CONNECTION_LAG_TIME}`}</span>
-                          ) : agentLegStatus === "connecting" ? (
-                            <span className="lyra-body-sm text-lyra-fg-secondary">Connecting...</span>
-                          ) : (
-                            // `Button` (Rule zero — no hand-rolled
-                            // `<button>`), stripped down to read as an
-                            // inline text link — same `h-auto p-0
-                            // hover:bg-transparent` pattern the record-
-                            // header's own "View Details" link-styled
-                            // `Button` uses (agent-next-gen-transcript.tsx).
-                            <Button
-                              variant="ghost"
-                              onClick={handleConnectAgentLeg}
-                              className="h-auto shrink-0 gap-0 p-0 hover:bg-transparent active:bg-transparent lyra-body-sm text-lyra-fg-link underline hover:no-underline"
-                            >
-                              Connect Agent Leg
-                            </Button>
-                          )}
-                        </div>
-                      }
-                    />
-                  )}
               {/* Body row: main content + interior panel */}
               <div className="relative flex flex-1 overflow-hidden">
               {/* Customers list view + row-info panel stay mounted across
@@ -4360,6 +4192,125 @@ export function AgentNextGenPage({
                 <>
                 <div key={activeDeskTab} className="flex flex-1 flex-col min-w-0 overflow-y-auto px-6 py-6 animate-in fade-in-0 duration-200">
                   <div className="w-full max-w-[1200px] mx-auto lyra-container-grid-wrap">
+                    {showPageHeader && (
+                      /* Home identity row — per explicit follow-up ("revert the header to
+                      what it was but instead of a page header, make it part of the
+                      dashboard") — no longer a real `PageHeader` (see commit 1605d87 +
+                      its revert for the header-CONTENT history; this change is
+                      structural only, content is unchanged). This plain row now lives
+                      INSIDE the scrollable dashboard body below instead of staying
+                      pinned above it, so it scrolls away with the rest of the content —
+                      the reference screenshot for this request was used only for rough
+                      positioning, not for its displayed copy. Title/subtitle/actions
+                      content (Personal Queue chip + tri-state agent-leg indicator) is
+                      unchanged from the `PageHeader` version, just re-hosted in a plain
+                      div approximating that component's own plain-title layout
+                      (`lyra-heading-lg` title, `lyra-body-sm text-lyra-fg-secondary`
+                      subtitle, right-aligned actions) since it no longer needs
+                      `PageHeader`'s pinned/bordered "record header" semantics. */
+                      <div className="mb-6 flex items-start justify-between gap-4">
+                        <div className="flex flex-col justify-center min-w-0">
+                        <h1 className="lyra-heading-lg text-lyra-fg-default truncate min-w-0">{`Agent ${CURRENT_AGENT_FIRST_NAME} ${CURRENT_AGENT_LAST_NAME}`}</h1>
+                        <span className="lyra-body-sm text-lyra-fg-secondary truncate">{`User Name: ${CURRENT_AGENT_ID}`}</span>
+                        </div>
+                      {
+                        // Per explicit request ("add a chip to the top
+                        // right (where the Assignments Completed today
+                        // used to be) that says '{N} Active Assignments'
+                        // and when clicked open the left rail") — this
+                        // is the exact spot the `SHOW_RESOLVED_TODAY_CHIP`-
+                        // gated Badge used to occupy (still hidden, see
+                        // that flag's own doc comment, agent-next-gen-
+                        // shared-utils.ts). Unlike that static badge,
+                        // this one is a real `Button` (Rule zero — no
+                        // hand-rolled `<button>`), styled to read as a
+                        // chip via the same `bg-lyra-status-*-subtle`/
+                        // `text-lyra-status-*-strong` pairing other info
+                        // callouts in this file already use as plain
+                        // classNames (not just inline style).
+                        // `interactions.length` is the exact same count
+                        // `AssignmentsSectionCaption` below renders as
+                        // "({count})" for the LeftNav's own caption —
+                        // one live number, two places it shows up.
+                        // `setNavOpen((v) => !v)` toggles the LeftNav
+                        // rail (its 52px/256px collapsed/expanded states
+                        // — see `navOpen`'s own declaration) exactly like
+                        // clicking its own collapse/expand toggle would.
+                        //
+                        // Label reads "Personal Queue: {N}", "Empty" in
+                        // place of a bare "0" once the queue has nothing
+                        // in it. The chip's color reflects the queue's
+                        // own worst-case state — success (green) once
+                        // genuinely empty, warning (amber) once it holds
+                        // any assignment at all, escalating to critical
+                        // (red) the moment ANY assignment has actually
+                        // breached SLA (not just nearing it) — same
+                        // success/warning/critical three-tier language
+                        // `getAwaitingSeverity`/the record-header channel
+                        // tab's own escalation already use, rolled up
+                        // across the whole queue. `hasBreachedSlaAssignment`
+                        // (declared alongside `clockTick` above) drives
+                        // both the red tier and the trailing `CircleAlert`
+                        // "!" mark — the same icon `ChannelTab` (lyra-ui,
+                        // channel-row.tsx) already reserves for a
+                        // genuinely breached (not just late) channel.
+                        //
+                        // Per explicit follow-up ("move connection lag
+                        // time / connect agent leg below Personal Queue
+                        // chip in all 3"), the tri-state agent-leg
+                        // indicator (Connect Agent Leg link/Connecting.../
+                        // Connection Lag Time) moved out of the subtitle
+                        // line (below the title, next to "User Name:
+                        // {id}") and down here instead, stacked directly
+                        // under the chip in this same `actions` slot —
+                        // `flex-col items-end` right-aligns both under one
+                        // another instead of the row's normal side-by-side
+                        // layout.
+                        <div className="flex flex-col items-end gap-1">
+                          <Tooltip content="Toggle Assignment Panel" placement="bottom" asLabel>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setNavOpen((v) => !v)}
+                              className={cn(
+                                "h-6 shrink-0 gap-0.5 rounded-lyra-md px-2 lyra-body-md-emphasis",
+                                hasBreachedSlaAssignment
+                                  ? "bg-lyra-status-critical-subtle text-lyra-status-critical-strong hover:bg-lyra-status-critical-subtle hover:opacity-80"
+                                  : interactions.length > 0
+                                  ? "bg-lyra-status-warning-subtle text-lyra-status-warning-strong hover:bg-lyra-status-warning-subtle hover:opacity-80"
+                                  : "bg-lyra-status-success-subtle text-lyra-status-success-strong hover:bg-lyra-status-success-subtle hover:opacity-80"
+                              )}
+                            >
+                              Personal Queue: {interactions.length > 0 ? interactions.length : "Empty"}
+                              {hasBreachedSlaAssignment && (
+                                <CircleAlert className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" />
+                              )}
+                              <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" />
+                            </Button>
+                          </Tooltip>
+                          {agentLegStatus === "connected" ? (
+                            <span className="lyra-body-sm text-lyra-fg-secondary">{`Connection Lag Time: ${CURRENT_AGENT_CONNECTION_LAG_TIME}`}</span>
+                          ) : agentLegStatus === "connecting" ? (
+                            <span className="lyra-body-sm text-lyra-fg-secondary">Connecting...</span>
+                          ) : (
+                            // `Button` (Rule zero — no hand-rolled
+                            // `<button>`), stripped down to read as an
+                            // inline text link — same `h-auto p-0
+                            // hover:bg-transparent` pattern the record-
+                            // header's own "View Details" link-styled
+                            // `Button` uses (agent-next-gen-transcript.tsx).
+                            <Button
+                              variant="ghost"
+                              onClick={handleConnectAgentLeg}
+                              className="h-auto shrink-0 gap-0 p-0 hover:bg-transparent active:bg-transparent lyra-body-sm text-lyra-fg-link underline hover:no-underline"
+                            >
+                              Connect Agent Leg
+                            </Button>
+                          )}
+                        </div>
+                      }
+                      </div>
+                    )}
                     {/* ── Queue widgets ──
                         `DashboardQueue` ("cards" variant, its default) —
                         the numbers come straight from `latestContacts`
