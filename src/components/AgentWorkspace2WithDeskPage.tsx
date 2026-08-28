@@ -6193,6 +6193,7 @@ export function AgentWorkspace2WithDeskPage({
       renderHeaderControls={({ gripProps, dockButtonProps, dockIcon, variant: dVariant }) => (
         <>
           <ContainerHeader
+            className="min-h-[54px]"
             title={activePanelContent.title}
             titleBadge={activePanelContent.titleBadge}
             titleClassName={activePanelContent.titleClassName}
@@ -6323,6 +6324,7 @@ export function AgentWorkspace2WithDeskPage({
       }}
     >
       <ContainerHeader
+        className="min-h-[54px]"
         title={activePanelContent.title}
         titleBadge={activePanelContent.titleBadge}
         titleClassName={activePanelContent.titleClassName}
@@ -6401,6 +6403,7 @@ export function AgentWorkspace2WithDeskPage({
   const primaryPanelView = panelMounted && activePanelContent ? (
     <div className="flex flex-col flex-1 overflow-hidden relative rounded-lyra-lg border border-lyra-border-subtle bg-lyra-bg-surface-base">
       <ContainerHeader
+        className="min-h-[54px]"
         title={activePanelContent.title}
         titleBadge={activePanelContent.titleBadge}
         titleClassName={activePanelContent.titleClassName}
@@ -8302,6 +8305,7 @@ export function AgentWorkspace2WithDeskPage({
                 )}
               >
                 <ContainerHeader
+                  className="min-h-[54px]"
                   title={activePanelContent.title}
                   titleBadge={activePanelContent.titleBadge}
                   titleClassName={activePanelContent.titleClassName}
