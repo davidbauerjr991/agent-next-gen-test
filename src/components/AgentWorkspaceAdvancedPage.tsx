@@ -4345,14 +4345,18 @@ export function AgentWorkspaceAdvancedPage({
                       INSIDE the scrollable dashboard body below instead of staying
                       pinned above it, so it scrolls away with the rest of the content —
                       the reference screenshot for this request was used only for rough
-                      positioning, not for its displayed copy. Title/subtitle/actions
-                      content (Personal Queue chip + tri-state agent-leg indicator) is
-                      unchanged from the `PageHeader` version, just re-hosted in a plain
-                      div approximating that component's own plain-title layout
-                      (`lyra-heading-lg` title, `lyra-body-sm text-lyra-fg-secondary`
-                      subtitle, right-aligned actions) since it no longer needs
-                      `PageHeader`'s pinned/bordered "record header" semantics. */
-                      <div className="mb-6 flex items-start justify-between gap-4">
+                      positioning, not for its displayed copy. Per a later explicit request ("remove the agent John Smith and user
+                      name in the dashboard since it's in the tooltip now"), this row's
+                      own title/subtitle (previously an `Agent {name}`/`User Name: {id}`
+                      pair, styled to approximate `PageHeader`'s own plain-title layout)
+                      is gone — that identity now surfaces via the hover trigger next to
+                      `AgentProfile` in the app header instead (see this file's own
+                      `AppHeader` render, further up, and that trigger's own doc
+                      comment). Left with just the Personal Queue chip and the tri-state
+                      agent-leg indicator, this row now puts one at each end
+                      (`justify-between`) instead of stacking both together under a
+                      title that no longer exists. */
+                      <div className="mb-6 flex items-center justify-between gap-4">
                       {
                         // Per explicit request ("add a chip to the top
                         // right (where the Assignments Completed today
@@ -4394,64 +4398,57 @@ export function AgentWorkspaceAdvancedPage({
                         // "!" mark — the same icon `ChannelTab` (lyra-ui,
                         // channel-row.tsx) already reserves for a
                         // genuinely breached (not just late) channel.
-                        //
-                        // Per explicit follow-up ("move connection lag
-                        // time / connect agent leg below Personal Queue
-                        // chip in all 3"), the tri-state agent-leg
-                        // indicator (Connect Agent Leg link/Connecting.../
-                        // Connection Lag Time) moved out of the subtitle
-                        // line and down here instead, stacked directly
-                        // under the chip in this same `actions` slot —
-                        // `flex-col items-end` right-aligns both under one
-                        // another instead of the row's normal side-by-side
-                        // layout.
-                        <div className="flex flex-col items-end gap-1">
-                          <Tooltip content="Toggle Assignment Panel" placement="bottom" asLabel>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setNavOpen((v) => !v)}
-                              className={cn(
-                                "h-6 shrink-0 gap-0.5 rounded-lyra-md px-2 lyra-body-md-emphasis",
-                                hasBreachedSlaAssignment
-                                  ? "bg-lyra-status-critical-subtle text-lyra-status-critical-strong hover:bg-lyra-status-critical-subtle hover:opacity-80"
-                                  : interactions.length > 0
-                                  ? "bg-lyra-status-warning-subtle text-lyra-status-warning-strong hover:bg-lyra-status-warning-subtle hover:opacity-80"
-                                  : "bg-lyra-status-success-subtle text-lyra-status-success-strong hover:bg-lyra-status-success-subtle hover:opacity-80"
-                              )}
-                            >
-                              Personal Queue: {interactions.length > 0 ? interactions.length : "Empty"}
-                              {hasBreachedSlaAssignment && (
-                                <CircleAlert className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" />
-                              )}
-                              <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" />
-                            </Button>
-                          </Tooltip>
-                          {agentLegStatus === "connected" ? (
-                            <span className="lyra-body-sm text-lyra-fg-secondary">{`Connection Lag Time: ${CURRENT_AGENT_CONNECTION_LAG_TIME}`}</span>
-                          ) : agentLegStatus === "connecting" ? (
-                            <span className="lyra-body-sm text-lyra-fg-secondary">Connecting...</span>
-                          ) : (
-                            // `Button` (Rule zero — no hand-rolled
-                            // `<button>`), stripped down to read as an
-                            // inline text link — same `h-auto p-0
-                            // hover:bg-transparent` pattern the record-
-                            // header's own "View Details" link-styled
-                            // `Button` uses (agent-next-gen-transcript.tsx).
-                            <Button
-                              variant="ghost"
-                              onClick={handleConnectAgentLeg}
-                              className="h-auto shrink-0 gap-0 p-0 hover:bg-transparent active:bg-transparent lyra-body-sm text-lyra-fg-link underline hover:no-underline"
-                            >
-                              Connect Agent Leg
-                            </Button>
-                          )}
-                        </div>
+                        <Tooltip content="Toggle Assignment Panel" placement="bottom" asLabel>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setNavOpen((v) => !v)}
+                            className={cn(
+                              "h-6 shrink-0 gap-0.5 rounded-lyra-md px-2 lyra-body-md-emphasis",
+                              hasBreachedSlaAssignment
+                                ? "bg-lyra-status-critical-subtle text-lyra-status-critical-strong hover:bg-lyra-status-critical-subtle hover:opacity-80"
+                                : interactions.length > 0
+                                ? "bg-lyra-status-warning-subtle text-lyra-status-warning-strong hover:bg-lyra-status-warning-subtle hover:opacity-80"
+                                : "bg-lyra-status-success-subtle text-lyra-status-success-strong hover:bg-lyra-status-success-subtle hover:opacity-80"
+                            )}
+                          >
+                            Personal Queue: {interactions.length > 0 ? interactions.length : "Empty"}
+                            {hasBreachedSlaAssignment && (
+                              <CircleAlert className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" />
+                            )}
+                            <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" />
+                          </Button>
+                        </Tooltip>
                       }
-                        <div className="flex flex-col justify-center min-w-0">
-                        <h1 className="lyra-heading-lg text-lyra-fg-default truncate min-w-0">{`Agent ${CURRENT_AGENT_FIRST_NAME} ${CURRENT_AGENT_LAST_NAME}`}</h1>
-                        <span className="lyra-body-sm text-lyra-fg-secondary truncate">{`User Name: ${CURRENT_AGENT_ID}`}</span>
-                        </div>
+                        {
+                        // Per explicit follow-up request ("put the connect agent leg on
+                        // the far right across from the personal queue chip"): the
+                        // tri-state agent-leg indicator (Connect Agent Leg link/
+                        // Connecting.../Connection Lag Time) moved out of this row's
+                        // `items-end`-stacked column under the chip (see this file's
+                        // own git history for that earlier stacked layout) into this
+                        // row's own second slot instead — `justify-between` on the row
+                        // above puts it flush against the row's right edge, directly
+                        // opposite the chip.
+                        agentLegStatus === "connected" ? (
+                          <span className="lyra-body-sm text-lyra-fg-secondary">{`Connection Lag Time: ${CURRENT_AGENT_CONNECTION_LAG_TIME}`}</span>
+                        ) : agentLegStatus === "connecting" ? (
+                          <span className="lyra-body-sm text-lyra-fg-secondary">Connecting...</span>
+                        ) : (
+                          // `Button` (Rule zero — no hand-rolled
+                          // `<button>`), stripped down to read as an
+                          // inline text link — same `h-auto p-0
+                          // hover:bg-transparent` pattern the record-
+                          // header's own "View Details" link-styled
+                          // `Button` uses (agent-next-gen-transcript.tsx).
+                          <Button
+                            variant="ghost"
+                            onClick={handleConnectAgentLeg}
+                            className="h-auto shrink-0 gap-0 p-0 hover:bg-transparent active:bg-transparent lyra-body-sm text-lyra-fg-link underline hover:no-underline"
+                          >
+                            Connect Agent Leg
+                          </Button>
+                        )}
                       </div>
                     )}
                     {/* ── Queue widgets ──
