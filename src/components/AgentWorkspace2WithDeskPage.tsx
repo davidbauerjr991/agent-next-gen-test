@@ -6196,7 +6196,7 @@ export function AgentWorkspace2WithDeskPage({
             className="min-h-[54px]"
             title={activePanelContent.title}
             titleBadge={activePanelContent.titleBadge}
-            titleClassName={activePanelContent.titleClassName}
+            titleClassName={activePanelContent.titleClassName ?? "lyra-heading-lg"}
             icon={
               dVariant === "float"
                 ? <div {...gripProps}><GripVertical className="h-4 w-4" strokeWidth={1.5} /></div>
@@ -6327,7 +6327,7 @@ export function AgentWorkspace2WithDeskPage({
         className="min-h-[54px]"
         title={activePanelContent.title}
         titleBadge={activePanelContent.titleBadge}
-        titleClassName={activePanelContent.titleClassName}
+        titleClassName={activePanelContent.titleClassName ?? "lyra-heading-lg"}
         icon={activePanelContent.dockedIcon}
         bordered={!activePanelContent.headerContent}
         actions={
@@ -6406,7 +6406,7 @@ export function AgentWorkspace2WithDeskPage({
         className="min-h-[54px]"
         title={activePanelContent.title}
         titleBadge={activePanelContent.titleBadge}
-        titleClassName={activePanelContent.titleClassName}
+        titleClassName={activePanelContent.titleClassName ?? "lyra-heading-lg"}
         icon={activePanelContent.dockedIcon}
         bordered={!activePanelContent.headerContent}
         actions={activePanelContent.headerActions}
@@ -8308,7 +8308,7 @@ export function AgentWorkspace2WithDeskPage({
                   className="min-h-[54px]"
                   title={activePanelContent.title}
                   titleBadge={activePanelContent.titleBadge}
-                  titleClassName={activePanelContent.titleClassName}
+                  titleClassName={activePanelContent.titleClassName ?? "lyra-heading-lg"}
                   icon={activePanelContent.dockedIcon}
                   bordered={!activePanelContent.headerContent}
                   actions={
