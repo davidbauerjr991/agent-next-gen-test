@@ -166,6 +166,7 @@ import {
 // this follows (build new things locally, promote to lyra-ui only once
 // explicitly asked).
 import { CollapsedChannelBadge } from "@/components/CollapsedChannelBadge";
+import { WorkspaceSwitcherIcon } from "@/components/agent-next-gen-workspace-switcher";
 import { AddChannelAdHocButton } from "@/components/agent-next-gen-add-channel-button";
 import appIcon from "@/assets/app-icon.svg";
 import {
@@ -4640,7 +4641,7 @@ export function AgentWorkspaceAdvancedPage({
           // to decide whether the icon row on the other side of the header
           // is crowding it, so icons only hide once there's a real
           // overlap risk instead of a fixed viewport-width guess.
-          <div ref={appNameMeasureRef} className="flex items-center gap-2">
+          <div ref={appNameMeasureRef} className="flex items-center">
             <AgentProfile
               name="John Smith"
               initials="JS"
@@ -4666,39 +4667,6 @@ export function AgentWorkspaceAdvancedPage({
               // own doc comment, agent-profile.tsx) is hidden outright.
               hideConnectedApps
             />
-            {/* Agent Workspace 2.0 | Advanced | Premium switcher — moved
-                here (was the header's own appName trigger) now that
-                AgentProfile occupies the far-left header slot. AgentProfile
-                is a self-contained lyra-ui component with no prop to
-                redirect its own avatar click to a different menu, so this
-                stays a separate, always-compact (icon-only, AppName's own
-                `compact` mode) trigger next to it rather than overloading
-                the avatar's click. Per explicit request. */}
-            <PopoverPrimitive.Root open={appMenuOpen} onOpenChange={setAppMenuOpen}>
-              <PopoverPrimitive.Trigger asChild>
-                <AppName
-                  icon={<img src={appIcon} alt="Agent Workspace 2.0 Advanced" className="h-6 w-6" />}
-                  name="Agent Workspace 2.0 Advanced"
-                  compact
-                  aria-expanded={appMenuOpen}
-                />
-              </PopoverPrimitive.Trigger>
-              <PopoverPrimitive.Portal>
-                <PopoverPrimitive.Content
-                  side="bottom"
-                  align="start"
-                  sideOffset={6}
-                  onOpenAutoFocus={(e: Event) => e.preventDefault()}
-                  className="z-[9999] animate-in fade-in-0 slide-in-from-top-2 duration-150 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-1 data-[state=closed]:duration-100"
-                >
-                  <AppMenu
-                    groups={appMenuGroups}
-                    footer={<CXoneLogo />}
-                    header="Agent Workspace 2.0 Advanced"
-                  />
-                </PopoverPrimitive.Content>
-              </PopoverPrimitive.Portal>
-            </PopoverPrimitive.Root>
           </div>
         }
         actions={
@@ -4887,6 +4855,19 @@ export function AgentWorkspaceAdvancedPage({
           open={navOpen}
           onToggle={() => setNavOpen((v) => !v)}
           overlay={isNavNarrow}
+          // Per explicit request: the Agent Workspace 2.0 | Advanced |
+          // Premium switcher (formerly the header's own appName trigger,
+          // then briefly a compact icon next to AgentProfile in the header)
+          // now lives here instead — `footer` is LeftNav's own real,
+          // documented prop for content pinned to the bottom of the nav rail.
+          footer={
+            <WorkspaceSwitcherIcon
+              appMenuOpen={appMenuOpen}
+              onAppMenuOpenChange={setAppMenuOpen}
+              appMenuGroups={appMenuGroups}
+              appName="Agent Workspace 2.0 Advanced"
+            />
+          }
           // Default (non-`itemsFirst`) order, per explicit follow-up
           // request: the "Assignments (N active)" caption + interaction
           // cards render FIRST (scrolling in the space below "New
