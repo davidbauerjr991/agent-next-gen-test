@@ -5852,6 +5852,7 @@ export function AgentWorkspace2WithDeskPage({
               onAppMenuOpenChange={setAppMenuOpen}
               appMenuGroups={appMenuGroups}
               appName="Agent Workspace 2.0 Premium"
+              expanded={navOpen}
             />
           }
           // Default (non-`itemsFirst`) order, per explicit follow-up

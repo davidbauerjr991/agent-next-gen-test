@@ -4866,6 +4866,7 @@ export function AgentWorkspaceAdvancedPage({
               onAppMenuOpenChange={setAppMenuOpen}
               appMenuGroups={appMenuGroups}
               appName="Agent Workspace 2.0 Advanced"
+              expanded={navOpen}
             />
           }
           // Default (non-`itemsFirst`) order, per explicit follow-up
