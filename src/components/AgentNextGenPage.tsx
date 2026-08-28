@@ -5004,7 +5004,7 @@ export function AgentNextGenPage({
       renderHeaderControls={({ gripProps, dockButtonProps, dockIcon, variant: dVariant }) => (
         <>
           <ContainerHeader
-            className="min-h-[54px]"
+            className={cn("min-h-[54px]", activePanelKey === "search" ? "pt-4 pb-0" : "py-4")}
             title={activePanelContent.title}
             titleBadge={activePanelContent.titleBadge}
             titleClassName={activePanelContent.titleClassName ?? "lyra-heading-lg"}
@@ -5132,7 +5132,7 @@ export function AgentNextGenPage({
       }}
     >
       <ContainerHeader
-        className="min-h-[54px]"
+        className={cn("min-h-[54px]", activePanelKey === "search" ? "pt-4 pb-0" : "py-4")}
         title={activePanelContent.title}
         titleBadge={activePanelContent.titleBadge}
         titleClassName={activePanelContent.titleClassName ?? "lyra-heading-lg"}
@@ -5211,7 +5211,7 @@ export function AgentNextGenPage({
   const primaryPanelView = panelMounted && activePanelContent ? (
     <div className="flex flex-col flex-1 overflow-hidden relative rounded-lyra-lg border border-lyra-border-subtle bg-lyra-bg-surface-base">
       <ContainerHeader
-        className="min-h-[54px]"
+        className={cn("min-h-[54px]", activePanelKey === "search" ? "pt-4 pb-0" : "py-4")}
         title={activePanelContent.title}
         titleBadge={activePanelContent.titleBadge}
         titleClassName={activePanelContent.titleClassName ?? "lyra-heading-lg"}
@@ -6978,7 +6978,7 @@ export function AgentNextGenPage({
                 )}
               >
                 <ContainerHeader
-                  className="min-h-[54px]"
+                  className={cn("min-h-[54px]", activePanelKey === "search" ? "pt-4 pb-0" : "py-4")}
                   title={activePanelContent.title}
                   titleBadge={activePanelContent.titleBadge}
                   titleClassName={activePanelContent.titleClassName ?? "lyra-heading-lg"}
