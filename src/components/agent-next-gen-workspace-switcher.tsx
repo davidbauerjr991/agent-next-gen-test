@@ -74,7 +74,7 @@ export function WorkspaceSwitcherIcon({
             onOpenAutoFocus={(e: Event) => e.preventDefault()}
             className="z-[9999] animate-in fade-in-0 slide-in-from-bottom-2 duration-150 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-bottom-1 data-[state=closed]:duration-100"
           >
-            <AppMenu groups={appMenuGroups} footer={<CXoneLogo />} header={appName} />
+            <AppMenu groups={appMenuGroups} footer={<CXoneLogo />} />
           </PopoverPrimitive.Content>
         </PopoverPrimitive.Portal>
       </PopoverPrimitive.Root>
