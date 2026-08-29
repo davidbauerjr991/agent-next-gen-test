@@ -1274,17 +1274,28 @@ export function AgentWorkspaceAdvancedPage({
   // signal — it no longer feeds this at all, and continues to gate ONLY
   // Customer Information's own tab set / customer-matching UI, per
   // explicit request.
-  // Was `!activeInteraction || activeInteraction.threads.length >= 2` —
-  // hid this row outright for a single-channel interaction. Per explicit
-  // follow-up request ("if only one interaction tab is open, display the
-  // tab instead of removing it"), now always shows whenever there's a real
-  // active interaction — a single open channel renders as its own one-tab
-  // row instead of disappearing. Safe to widen this far: the ONLY other
-  // consumer this constant used to also gate, `showSessionActionCluster`
-  // at the `<InteractionTranscript>` call site below, is already
-  // unconditional regardless of channel count (see the comment right
-  // above this one) — it no longer reads this constant at all.
-  const showChannelTabRow = !!activeInteraction;
+  // Was `!activeInteraction || activeInteraction.threads.length >= 2`, then
+  // (a later change) `!!activeInteraction` — always showing this row
+  // whenever there's a real active interaction, a single open channel
+  // rendering as its own one-tab row instead of disappearing. Per explicit
+  // follow-up request ("hide the interaction tabs" — the Email/Chat/Voice
+  // channel tab row that used to sit above the session row), hardcoded to
+  // `false` now, same "just flip the flag" pattern as
+  // `SHOW_RECORD_HEADER_SUBTITLE` above: the row's own render site
+  // (`{showChannelTabRow && (...)}` on the `<TabList>`/`<ChannelTab>` row,
+  // below) is otherwise untouched, so restoring the old
+  // `!!activeInteraction` behavior later needs no other changes. The
+  // session row itself (`# CTX-...` / View Details / Delete Draft) is a
+  // separate element and keeps rendering regardless — this only removes
+  // the channel tab row that used to sit above it. Safe to hardcode: the
+  // ONLY other consumer this constant used to also gate,
+  // `showSessionActionCluster` at the `<InteractionTranscript>` call site
+  // below, is already unconditional regardless of channel count (see the
+  // comment above), and the one other live read of this constant (this
+  // component's `subtitle` ternary, further below) is already
+  // short-circuited to `undefined` by `SHOW_RECORD_HEADER_SUBTITLE` being
+  // `false`, so it never actually evaluates `showChannelTabRow` either.
+  const showChannelTabRow = false;
   // Per explicit request ("hide the subhead from the interaction header
   // under the user's name for now - I may bring it back") — mirrors Agent
   // Workspace 2.0's identical flag (AgentNextGenPage.tsx, see that file's

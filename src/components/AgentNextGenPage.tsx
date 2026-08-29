@@ -1838,27 +1838,27 @@ export function AgentNextGenPage({
   // Premium/Advanced's own redesign already established (see BEHAVIOR.md
   // §23), now shared by this file too instead of being permanently opted
   // out of it.
-  // Was `!activeInteraction || activeInteraction.threads.length >= 2` — hid
-  // this row outright for a genuine single-channel interaction (just the
-  // "+" Add Channel trigger up in the record header, no tab underneath at
-  // all). Per explicit follow-up request ("if only one interaction tab is
-  // open, display the tab instead of removing it"), now always shows
-  // whenever there's a real active interaction, so a single open channel
-  // still renders as its own one-tab row instead of disappearing — the "+"
-  // trigger sits right alongside it as before, just with a real tab under
-  // it now rather than empty space. Safe to simplify this far: the ONLY
-  // other thing this constant used to also gate,
-  // `showSessionActionCluster` on `InteractionTranscript`'s call site
-  // further down, is unconditionally `true` now regardless of channel
-  // count (see BEHAVIOR.md's "channel controls always in the session row"
-  // entry) — it no longer reads this constant at all, so widening this
-  // one has no other side effect left to worry about. The subtitle
-  // ternary a few hundred lines down (currently moot anyway —
-  // `SHOW_RECORD_HEADER_SUBTITLE` is `false`) also still explicitly
-  // re-checks `activeInteraction.threads.length >= 2` itself, so it keeps
-  // picking the correct single-vs-multi copy even though this constant no
-  // longer implies that distinction on its own.
-  const showChannelTabRow = !!activeInteraction;
+  // Was `!activeInteraction || activeInteraction.threads.length >= 2`, then
+  // (a later change) `!!activeInteraction` — always showing this row
+  // whenever there's a real active interaction, a single open channel
+  // rendering as its own one-tab row instead of disappearing. Per explicit
+  // follow-up request ("hide the interaction tabs" — the Email/Chat/Voice
+  // channel tab row that used to sit above the session row), hardcoded to
+  // `false` now, same all-3-tiers scope as that request. The row's own
+  // render site (`{showChannelTabRow && (...)}` on the
+  // `<TabList>`/`<ChannelTab>` row, further down) is otherwise untouched,
+  // so restoring the old `!!activeInteraction` behavior later needs no
+  // other changes — same for the "+" Add Channel trigger up in the record
+  // header, which is a separate element and keeps rendering regardless.
+  // Safe to hardcode: the ONLY other thing this constant used to also
+  // gate, `showSessionActionCluster` on `InteractionTranscript`'s call
+  // site further down, is unconditionally `true` now regardless of
+  // channel count (see BEHAVIOR.md's "channel controls always in the
+  // session row" entry) — it no longer reads this constant at all. The
+  // subtitle ternary a few hundred lines down is currently moot anyway
+  // (`SHOW_RECORD_HEADER_SUBTITLE` is `false`), so it never actually
+  // evaluates this constant either.
+  const showChannelTabRow = false;
   // Follow-up to `showChannelTabRow` just above, mirroring Premium/
   // Advanced's own identical `showSessionActionCluster={showChannelTabRow}`
   // wiring at their `InteractionTranscript` call sites (was this file's own
