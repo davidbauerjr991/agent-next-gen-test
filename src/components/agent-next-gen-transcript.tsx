@@ -50,6 +50,8 @@ import {
   FileDown,
   Languages,
   Trash2,
+  UserCheck,
+  X,
 } from "lucide-react";
 import {
   CURRENT_AGENT_FIRST_NAME,
@@ -685,6 +687,107 @@ function TypingIndicator({
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── TranscriptCustomerLinkedNote ──
+   Per explicit request: an inline card that animates into the live
+   conversation the moment an agent links/matches a real customer record to
+   the interaction (`handleLinkCustomerRecord`/`handleSaveNewCustomer`, each
+   page's own file) — mirrors a reference screenshot's "ATLAS" internal-note
+   card (an AI assistant's inline summary + dismiss chevron), rebuilt here
+   from this app's own REAL customer data (`buildCustomerInfoFields`'s
+   "Balance"/"Contact #" fields, `buildLatestInteraction`/`buildLatestNote`'s
+   own summaries — agent-next-gen-customer-info-panel.tsx, the exact same
+   helpers the Customer Information panel's Overview tab already calls) —
+   never fabricated fields like the reference's loyalty-points balance or
+   sentiment tag, which this app's data model has no equivalent for. Built
+   entirely from plain divs/lyra tokens (no lyra-ui component to compose for
+   this shape) plus one real lyra-ui atom, `ActionIconButton`, for the
+   dismiss control — per CONTRIBUTING.md's "never hand-roll a button" rule.
+   Per explicit follow-up decision ("dismiss only, no separate action"), the
+   only control is that dismiss button — no second action button, unlike
+   the reference screenshot's implied "perform an action."
+   `animate-in fade-in-0 slide-in-from-bottom-1 fill-mode-backwards
+   duration-500` — the same entrance this file's own Marcus Webb Copilot
+   cards use (AgentWorkspace2WithDeskPage.tsx, see that component's own doc
+   comment for the full "why this exact easing/duration" reasoning), reused
+   verbatim here for the same "a card newly arriving in a running
+   conversation" effect. */
+export function TranscriptCustomerLinkedNote({
+  customerName,
+  initials,
+  contactNumber,
+  balance,
+  snapshotItems,
+  onDismiss,
+}: {
+  customerName: string;
+  initials: string;
+  contactNumber: string;
+  /** Omitted (not just blank) when the caller has no real balance to show
+   *  — see this component's own top doc comment for why nothing here is
+   *  ever fabricated to fill the slot. */
+  balance?: string;
+  /** Real, already-computed summaries (`buildLatestInteraction`'s
+   *  `summary`, `buildLatestNote`'s `note` — see this component's own top
+   *  doc comment) — never a placeholder string when the list is short;
+   *  an empty array simply renders no "Customer Snapshot" section at
+   *  all. */
+  snapshotItems: string[];
+  onDismiss: () => void;
+}) {
+  return (
+    <div className="animate-in fade-in-0 slide-in-from-bottom-1 fill-mode-backwards duration-500 overflow-hidden rounded-lyra-md border border-lyra-border-subtle bg-lyra-bg-surface-base">
+      <div className="flex items-center justify-between gap-2 border-b border-lyra-border-subtle bg-lyra-status-success-subtle px-4 py-2.5">
+        <div className="flex items-center gap-2">
+          <UserCheck className="h-4 w-4 shrink-0 text-lyra-status-success-strong" strokeWidth={1.5} aria-hidden="true" />
+          <span className="lyra-body-md-emphasis text-lyra-fg-default">Customer Linked</span>
+        </div>
+        <ActionIconButton size="sm" title="Dismiss customer summary" onClick={onDismiss}>
+          <X className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" />
+        </ActionIconButton>
+      </div>
+      <div className="flex flex-col gap-3 px-4 py-3">
+        <p className="lyra-body-md text-lyra-fg-default">You are now live with customer {customerName}.</p>
+        <div className="flex items-center justify-between gap-3 rounded-lyra-md border border-lyra-border-subtle bg-lyra-bg-control-subtle px-3 py-2.5">
+          <div className="flex min-w-0 items-center gap-2">
+            <span
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-lyra-bg-primary text-lyra-fg-on-primary lyra-body-sm-emphasis"
+              aria-hidden="true"
+            >
+              {initials}
+            </span>
+            <div className="flex min-w-0 flex-col">
+              <span className="lyra-body-md-emphasis text-lyra-fg-default truncate">{customerName}</span>
+              <span className="lyra-body-sm text-lyra-fg-secondary truncate">Contact #{contactNumber}</span>
+            </div>
+          </div>
+          {balance && (
+            <div className="flex shrink-0 flex-col items-end">
+              <span className="lyra-body-sm text-lyra-fg-secondary">Balance</span>
+              <span className="lyra-body-md-emphasis text-lyra-fg-default">{balance}</span>
+            </div>
+          )}
+        </div>
+        {snapshotItems.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            <span className="lyra-body-sm-emphasis text-lyra-fg-secondary">Customer Snapshot</span>
+            <ul className="flex flex-col gap-1">
+              {snapshotItems.map((item, i) => (
+                <li key={i} className="flex items-start gap-2">
+                  <span
+                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-lyra-status-success-strong"
+                    aria-hidden="true"
+                  />
+                  <span className="lyra-body-sm text-lyra-fg-default">{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1787,6 +1890,8 @@ export function InteractionTranscript({
   showSessionActionCluster = true,
   isNewThread = false,
   isCustomerTyping = false,
+  customerLinkedNote = null,
+  onDismissCustomerLinkedNote,
 }: {
   /** Which channel's content to show — see this component's own doc
    *  comment above. Undefined (no active interaction/channel yet) renders
@@ -1965,6 +2070,31 @@ export function InteractionTranscript({
    *  `false`; every existing call site is unaffected until the caller starts
    *  computing a real value. */
   isCustomerTyping?: boolean;
+  /** Per explicit request: renders a `TranscriptCustomerLinkedNote` (see
+   *  that component's own top doc comment) inline among the CURRENT
+   *  session's own live messages, once, at the position it was created —
+   *  `atLiveMessageCount` is a one-time snapshot of how many live messages
+   *  this channel already had at the moment the customer got linked
+   *  (`handleLinkCustomerRecord`/`handleSaveNewCustomer`, page-level state),
+   *  NOT re-derived every render — that's what keeps the card pinned in
+   *  its original chronological spot as the agent keeps chatting
+   *  afterward, rather than always floating to the current bottom of the
+   *  conversation. `null` (the default) renders nothing; every existing
+   *  call site is unaffected until the caller starts passing a real
+   *  value. */
+  customerLinkedNote?: {
+    atLiveMessageCount: number;
+    customerName: string;
+    initials: string;
+    contactNumber: string;
+    balance?: string;
+    snapshotItems: string[];
+  } | null;
+  /** Fires when the agent dismisses `customerLinkedNote` above — the
+   *  caller is expected to clear its own state so the card doesn't
+   *  reappear on the next render. Only meaningful (and only ever called)
+   *  while `customerLinkedNote` is actually set. */
+  onDismissCustomerLinkedNote?: () => void;
 }) {
   // A freshly-launched Chat/SMS/WhatsApp interaction (see `isFreshLaunch`'s
   // own doc comment) shows just a single synthesized "Session Details"
@@ -2781,26 +2911,56 @@ export function InteractionTranscript({
                   // `isCustomerTyping`'s own doc comment above for the full
                   // `lastSessionId`/`isTextChannel` scoping reasoning.
                   const showTypingIndicator = session.id === lastSessionId && isTextChannel && isCustomerTyping;
+                  // `customerLinkedNote` only ever belongs to the CURRENT
+                  // session — see that prop's own doc comment above for why
+                  // `atLiveMessageCount` is a one-time snapshot rather than
+                  // something re-derived every render. `null` (not just
+                  // "index past the end") for every OTHER session so an
+                  // older/closed session never renders it. `noteIndex` is
+                  // clamped to this session's actual live-message count in
+                  // case a caller-side bug ever hands this a stale, too-
+                  // large value — an unclamped index would silently render
+                  // nothing at all (neither the `=== idx` branch inside the
+                  // map below, since no such index exists, nor the trailing
+                  // fallback, since a too-large number would never equal
+                  // `sessionLiveMessages.length` either).
+                  const noteIndex =
+                    session.id === lastSessionId && customerLinkedNote
+                      ? Math.min(customerLinkedNote.atLiveMessageCount, sessionLiveMessages.length)
+                      : null;
+                  const note = noteIndex !== null && customerLinkedNote ? (
+                    <TranscriptCustomerLinkedNote
+                      customerName={customerLinkedNote.customerName}
+                      initials={customerLinkedNote.initials}
+                      contactNumber={customerLinkedNote.contactNumber}
+                      balance={customerLinkedNote.balance}
+                      snapshotItems={customerLinkedNote.snapshotItems}
+                      onDismiss={() => onDismissCustomerLinkedNote?.()}
+                    />
+                  ) : null;
                   return (
-                    (sessionLiveMessages.length > 0 || showTypingIndicator) && (
+                    (sessionLiveMessages.length > 0 || showTypingIndicator || note) && (
                       <div className="flex flex-col gap-5 py-4">
-                        {sessionLiveMessages.map((message) => (
-                          <TranscriptMessageBubble
-                            key={message.id}
-                            message={{
-                              ...message,
-                              ...(message.sender === "customer" ? { name: displayName, initials: displayInitials } : {}),
-                              tags: liveMessageTags[message.id] ?? message.tags,
-                            }}
-                            tagPickerOpen={tagPickerOpenId === message.id}
-                            onTagPickerOpenChange={(open) => setTagPickerOpenId(open ? message.id : null)}
-                            onAddTag={(option) => addLiveTag(message.id, option)}
-                            onRemoveTag={(tagId) => removeLiveTag(message.id, tagId)}
-                            onClearTags={() => clearLiveTags(message.id)}
-                            onCopy={() => copyMessage(message.text)}
-                            narrow={transcriptNarrow}
-                          />
+                        {sessionLiveMessages.map((message, index) => (
+                          <React.Fragment key={message.id}>
+                            {noteIndex === index && note}
+                            <TranscriptMessageBubble
+                              message={{
+                                ...message,
+                                ...(message.sender === "customer" ? { name: displayName, initials: displayInitials } : {}),
+                                tags: liveMessageTags[message.id] ?? message.tags,
+                              }}
+                              tagPickerOpen={tagPickerOpenId === message.id}
+                              onTagPickerOpenChange={(open) => setTagPickerOpenId(open ? message.id : null)}
+                              onAddTag={(option) => addLiveTag(message.id, option)}
+                              onRemoveTag={(tagId) => removeLiveTag(message.id, tagId)}
+                              onClearTags={() => clearLiveTags(message.id)}
+                              onCopy={() => copyMessage(message.text)}
+                              narrow={transcriptNarrow}
+                            />
+                          </React.Fragment>
                         ))}
+                        {noteIndex === sessionLiveMessages.length && note}
                         {showTypingIndicator && (
                           <TypingIndicator
                             initials={displayInitials}

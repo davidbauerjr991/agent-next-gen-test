@@ -156,6 +156,8 @@ import {
   CustomerRowInfoPanel,
   AGENT_WORKSPACE_CUSTOMER_PANEL_TABS,
   buildCustomerInfoFields,
+  buildLatestInteraction,
+  buildLatestNote,
   useCustomerRecordDraft,
   findPossibleCustomerMatches,
   filterCustomersByQuery,
@@ -1113,6 +1115,31 @@ export function AgentWorkspaceAdvancedPage({
         : [],
     [activeInteraction?.customerName, activeInteraction?.customerId, activeInteraction?.threads]
   );
+  /** Per explicit request: the inline "Customer Linked" note that animates
+   *  into the transcript the moment `handleLinkCustomerRecord`/
+   *  `handleSaveNewCustomer` (below) promotes the active interaction to a
+   *  real customer — see `TranscriptCustomerLinkedNote`'s own top doc
+   *  comment (agent-next-gen-transcript.tsx) for the full reasoning/
+   *  content sourcing. Scoped to one specific interaction+channel
+   *  (`interactionId`/`channelKey`) so switching to a DIFFERENT interaction
+   *  or channel never shows a stale note meant for another conversation —
+   *  the `<InteractionTranscript>` call site below only passes this
+   *  through when both match the currently active one.
+   *  `atLiveMessageCount` is captured once, at creation time (see the two
+   *  handlers below) — not re-read every render — so the card stays pinned
+   *  at its original position as the agent keeps chatting afterward. `null`
+   *  (both initially and once dismissed — see `onDismissCustomerLinkedNote`
+   *  below) renders nothing. */
+  const [customerLinkedNote, setCustomerLinkedNote] = useState<{
+    interactionId: string;
+    channelKey: string;
+    atLiveMessageCount: number;
+    customerName: string;
+    initials: string;
+    contactNumber: string;
+    balance?: string;
+    snapshotItems: string[];
+  } | null>(null);
   const activeCustomerRecordDraft = useCustomerRecordDraft(
     activeCustomerFields,
     activeInteraction?.customerName,
@@ -1413,6 +1440,29 @@ export function AgentWorkspaceAdvancedPage({
       )
     );
     setActiveInteractionId(customer.id);
+    // Per explicit request: surfaces the inline "Customer Linked" note the
+    // instant this promotion resolves — see `customerLinkedNote`'s own doc
+    // comment above for the full reasoning. Real data throughout: the same
+    // `buildCustomerInfoFields`/`buildLatestInteraction`/`buildLatestNote`
+    // helpers the Customer Information panel's own Overview tab already
+    // calls, keyed on the JUST-LINKED record's own name/customerId (not
+    // `activeInteraction`'s pre-link identity, which this whole promotion
+    // is replacing) — `activeInteraction.threads` is still the right
+    // channel list to pass, though, since linking only changes WHO this
+    // interaction belongs to, not which channels are open on it.
+    const linkedFields = buildCustomerInfoFields(customer.name, customer.customerId, activeInteraction.threads);
+    const linkedLatestInteraction = buildLatestInteraction(customer.name, customer.customerId);
+    const linkedLatestNote = buildLatestNote(customer.name, customer.customerId);
+    setCustomerLinkedNote({
+      interactionId: customer.id,
+      channelKey: activeChannelKey,
+      atLiveMessageCount: activeInteraction.liveMessages?.[activeChannelKey]?.length ?? 0,
+      customerName: customer.name,
+      initials: initialsFor(customer.name),
+      contactNumber: customer.customerId,
+      balance: linkedFields.find((f) => f.label === "Balance")?.value,
+      snapshotItems: [linkedLatestInteraction.summary, linkedLatestNote.note],
+    });
     addToast({
       variant: "success",
       title: "Linked to record",
@@ -1480,6 +1530,27 @@ export function AgentWorkspaceAdvancedPage({
       prev.map((interaction) => (interaction.id === fromId ? { ...interaction, id: newId, customerName: name } : interaction))
     );
     setActiveInteractionId(newId);
+    // Per explicit request — same inline "Customer Linked" note as
+    // `handleLinkCustomerRecord` above, see that call site's own doc
+    // comment for the full reasoning. `newRecord.paymentBalance` is used
+    // directly for Balance (the agent's own typed value, or its "$0.00"
+    // default) rather than `buildCustomerInfoFields`, which only reads
+    // `CREATE_NEW_CUSTOMERS` — a brand-new record isn't in that fixed
+    // array. `buildLatestInteraction`/`buildLatestNote` still apply
+    // unchanged, though: both synthesize purely from `name`/`newId`, with
+    // no dependency on the record actually existing in that array either.
+    const newCustomerLatestInteraction = buildLatestInteraction(name, newId);
+    const newCustomerLatestNote = buildLatestNote(name, newId);
+    setCustomerLinkedNote({
+      interactionId: newId,
+      channelKey: activeChannelKey,
+      atLiveMessageCount: activeInteraction.liveMessages?.[activeChannelKey]?.length ?? 0,
+      customerName: name,
+      initials: initialsFor(name),
+      contactNumber: newRecord.originalCustomerId || activeInteraction.customerId,
+      balance: newRecord.paymentBalance,
+      snapshotItems: [newCustomerLatestInteraction.summary, newCustomerLatestNote.note],
+    });
     addToast({
       variant: "success",
       title: "Customer created",
@@ -7030,6 +7101,19 @@ export function AgentWorkspaceAdvancedPage({
                           // same reasoning `applyToChannel` itself already
                           // uses for `channelKeyAtSend`.
                           isCustomerTyping={!!customerTyping[`${activeInteraction.id}:${activeChannelKey}`]}
+                          // Only passed through while it actually belongs to
+                          // THIS interaction+channel — see
+                          // `customerLinkedNote`'s own doc comment above for
+                          // why (a stale note from a previously-linked,
+                          // now-inactive interaction must never bleed into
+                          // whatever's currently showing).
+                          customerLinkedNote={
+                            customerLinkedNote?.interactionId === activeInteraction.id &&
+                            customerLinkedNote?.channelKey === activeChannelKey
+                              ? customerLinkedNote
+                              : null
+                          }
+                          onDismissCustomerLinkedNote={() => setCustomerLinkedNote(null)}
                           // Same union of conditions the "closed
                           // interaction"/"channel closed" banners just above
                           // this transcript already gate on — see `dimmed`'s
