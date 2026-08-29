@@ -2012,10 +2012,21 @@ export function AgentWorkspaceAdvancedPage({
   // re-threading every `sidePanelPinned` read site.
   const [sidePanelPinned] = useState(true);
   const [sidePanelResizing, setSidePanelResizing] = useState(false);
-  // 340 — explicit starting width for the SidePanel version (was 425,
-  // matching the old InteriorPanel's `maxWidth` default) — per explicit
+  // Per explicit request ("I want the customer panel to be the size
+  // depicted in this screenshot" — a wide, dominant panel, roughly 2x
+  // the interaction column's own width), Advanced only: 750 — up from
+  // the previous 340 default. Note: `CustomerInformationSidePanel`'s
+  // own drag-resize range is still hardcoded to max out at 425px
+  // (agent-next-gen-customer-info-panel.tsx's `clampedMaxWidth`,
+  // shared across all 3 tiers) — that cap only limits how far a
+  // MANUAL drag can go, not this default render width itself
+  // (`clampedWidth` there only clamps against the parent Container's
+  // own width, not a fixed number), so the panel still renders at
+  // this wider default on load; only an interactive drag would
+  // currently be capped below it. Changing that shared cap itself
+  // would affect all 3 tiers, out of scope for this Advanced-only
   // request.
-  const [sidePanelWidth, setSidePanelWidth] = useState(340);
+  const [sidePanelWidth, setSidePanelWidth] = useState(750);
   // Full-screen toggle (per explicit request) — see
   // `CustomerInformationSidePanel`'s own doc comment for how this actually
   // renders (an unpinned overlay sized to the parent Container's own
