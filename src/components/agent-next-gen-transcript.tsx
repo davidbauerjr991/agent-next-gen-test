@@ -2268,7 +2268,23 @@ export function InteractionTranscript({
   // session that reads "Closed" ever exposes the collapse icon that flips
   // this (`TranscriptSessionSeparator`'s own `onToggleCollapsed` doc
   // comment) — a still-open session's id never lands in this set.
-  const [collapsedSessionIds, setCollapsedSessionIds] = useState<Set<string>>(new Set());
+  //
+  // Per explicit bug report: this used to always start empty, so a card
+  // opened straight into an already-Closed session (e.g. from Search/
+  // Contact History — no live reopen happens during THIS mount at all, it
+  // was already Closed in the seed data) rendered fully expanded with
+  // nothing to auto-collapse it, even though `getSessionStatus` already
+  // reads it as "Closed" from the very first render. Lazy-initialized from
+  // `sessionsToRender`/`lastSessionId` (both already computed above) so
+  // every session that ISN'T the current one — i.e. every session that
+  // reads "Closed" per `getSessionStatus` — starts collapsed on mount, not
+  // just ones that close later via the `prevLastSessionIdRef` effect right
+  // below. Only runs once (lazy `useState` initializer, not an effect), so
+  // it never re-fights an agent who manually re-expands a session afterward
+  // via `toggleSessionCollapsed`.
+  const [collapsedSessionIds, setCollapsedSessionIds] = useState<Set<string>>(
+    () => new Set(sessionsToRender.filter((session) => session.id !== lastSessionId).map((session) => session.id))
+  );
 
   const toggleSessionCollapsed = (sessionId: string) => {
     setCollapsedSessionIds((prev) => {
@@ -2279,18 +2295,17 @@ export function InteractionTranscript({
     });
   };
 
-  // Per explicit request: a session that just got superseded by a reopen
-  // (i.e. it WAS `lastSessionId` — the live one — and now isn't, because a
-  // new `reopenedContacts` entry landed and took that title over) should
-  // collapse automatically, not sit there expanded until the agent notices
-  // it now reads "Closed" and clicks the collapse icon themselves. Tracks
-  // the previous `lastSessionId` in a ref purely to detect that one
-  // transition — comparing against `collapsedSessionIds` itself would only
-  // tell us the CURRENT collapsed set, not which session id just stopped
-  // being current. Deliberately only auto-collapses the session that just
-  // closed, not every historical session that already read "Closed" before
-  // this render (an agent who explicitly re-expanded an old session to
-  // re-read it keeps seeing it expanded — this never fights that choice).
+  // Covers the other half of the same bug the lazy initializer above
+  // fixes: THIS mount is still live when a reopen happens (agent is
+  // sitting on the card when it gets superseded), so the session that just
+  // lost `lastSessionId` needs to collapse right then too, not just at
+  // mount. Tracks the previous `lastSessionId` in a ref purely to detect
+  // that one transition — comparing against `collapsedSessionIds` itself
+  // would only tell us the CURRENT collapsed set, not which session id
+  // just stopped being current. Deliberately only auto-collapses the
+  // session that just closed, not every historical session (an agent who
+  // explicitly re-expanded an old session to re-read it keeps seeing it
+  // expanded — this never fights that choice).
   const prevLastSessionIdRef = useRef(lastSessionId);
   useEffect(() => {
     const prevLastSessionId = prevLastSessionIdRef.current;
