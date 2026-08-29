@@ -1115,19 +1115,21 @@ export function AgentWorkspaceAdvancedPage({
         : [],
     [activeInteraction?.customerName, activeInteraction?.customerId, activeInteraction?.threads]
   );
-  /** Per explicit request: the inline "Customer Linked" note that animates
-   *  into the transcript the moment `handleLinkCustomerRecord`/
-   *  `handleSaveNewCustomer` (below) promotes the active interaction to a
-   *  real customer — see `TranscriptCustomerLinkedNote`'s own top doc
-   *  comment (agent-next-gen-transcript.tsx) for the full reasoning/
-   *  content sourcing. Scoped to one specific interaction+channel
+  /** Per explicit request ("I want it for ALL interactions" — a follow-up
+   *  correction; this originally only fired from the explicit link/create-
+   *  customer actions below, which was wrong): the inline "Customer
+   *  Summary" note that animates into the transcript once, automatically,
+   *  the moment EVERY interaction becomes active — see
+   *  `TranscriptCustomerLinkedNote`'s own top doc comment
+   *  (agent-next-gen-transcript.tsx) for the full reasoning/content
+   *  sourcing. Scoped to one specific interaction+channel
    *  (`interactionId`/`channelKey`) so switching to a DIFFERENT interaction
    *  or channel never shows a stale note meant for another conversation —
    *  the `<InteractionTranscript>` call site below only passes this
-   *  through when both match the currently active one.
-   *  `atLiveMessageCount` is captured once, at creation time (see the two
-   *  handlers below) — not re-read every render — so the card stays pinned
-   *  at its original position as the agent keeps chatting afterward. `null`
+   *  through when both match the currently active one. `atLiveMessageCount`
+   *  is captured once, at creation time (see `shownCustomerSummaryIds`'s own
+   *  effect below) — not re-read every render — so the card stays pinned at
+   *  its original position as the agent keeps chatting afterward. `null`
    *  (both initially and once dismissed — see `onDismissCustomerLinkedNote`
    *  below) renders nothing. */
   const [customerLinkedNote, setCustomerLinkedNote] = useState<{
@@ -1140,6 +1142,50 @@ export function AgentWorkspaceAdvancedPage({
     balance?: string;
     snapshotItems: string[];
   } | null>(null);
+  /** Every interaction id this session has already shown its one-time
+   *  Customer Summary note for — see the effect right below. A plain
+   *  `Set` in a ref (not state): membership here should never itself
+   *  trigger a re-render, and must survive across renders without being
+   *  reset the way a piece of `useState` keyed on some other value could
+   *  be. Never removed from, even on dismiss — dismissing the note (see
+   *  `onDismissCustomerLinkedNote` below) hides it for good for that one
+   *  interaction, it does not make it eligible to show again later. */
+  const shownCustomerSummaryIds = useRef<Set<string>>(new Set());
+  /** Fires the Customer Summary note exactly once per distinct interaction
+   *  id — every genuinely new interaction (real customer or not — see
+   *  `TranscriptCustomerLinkedNote`'s own top doc comment for why an
+   *  unknown-contact interaction still gets real, if synthesized, values
+   *  from the same `buildCustomerInfoFields`/etc. helpers), AND a second
+   *  time for the SAME conversation right after `handleLinkCustomerRecord`/
+   *  `handleSaveNewCustomer` (below) promote it to a different real
+   *  customer — both of those reassign `activeInteraction.id` itself (to
+   *  the matched/created customer's own id), which this effect's
+   *  dependency list picks up as a brand-new id needing its own note, with
+   *  that promotion's own fresh identity/fields. Keyed on `activeInteraction
+   *  ?.id` alone (not name/customerId) so this can't loop — reading
+   *  `activeInteraction`'s other fields inside the effect body is fine,
+   *  writing them is what would need to be in the dependency list to risk
+   *  one. */
+  useEffect(() => {
+    if (!activeInteraction) return;
+    if (shownCustomerSummaryIds.current.has(activeInteraction.id)) return;
+    shownCustomerSummaryIds.current.add(activeInteraction.id);
+    const name = activeInteraction.customerName ?? "Customer";
+    const fields = buildCustomerInfoFields(activeInteraction.customerName, activeInteraction.customerId, activeInteraction.threads);
+    const latestInteraction = buildLatestInteraction(activeInteraction.customerName, activeInteraction.customerId);
+    const latestNote = buildLatestNote(activeInteraction.customerName, activeInteraction.customerId);
+    setCustomerLinkedNote({
+      interactionId: activeInteraction.id,
+      channelKey: activeChannelKey,
+      atLiveMessageCount: activeInteraction.liveMessages?.[activeChannelKey]?.length ?? 0,
+      customerName: name,
+      initials: initialsFor(name),
+      contactNumber: activeInteraction.customerId,
+      balance: fields.find((f) => f.label === "Balance")?.value,
+      snapshotItems: [latestInteraction.summary, latestNote.note],
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeInteraction?.id]);
   const activeCustomerRecordDraft = useCustomerRecordDraft(
     activeCustomerFields,
     activeInteraction?.customerName,
@@ -1440,29 +1486,11 @@ export function AgentWorkspaceAdvancedPage({
       )
     );
     setActiveInteractionId(customer.id);
-    // Per explicit request: surfaces the inline "Customer Linked" note the
-    // instant this promotion resolves — see `customerLinkedNote`'s own doc
-    // comment above for the full reasoning. Real data throughout: the same
-    // `buildCustomerInfoFields`/`buildLatestInteraction`/`buildLatestNote`
-    // helpers the Customer Information panel's own Overview tab already
-    // calls, keyed on the JUST-LINKED record's own name/customerId (not
-    // `activeInteraction`'s pre-link identity, which this whole promotion
-    // is replacing) — `activeInteraction.threads` is still the right
-    // channel list to pass, though, since linking only changes WHO this
-    // interaction belongs to, not which channels are open on it.
-    const linkedFields = buildCustomerInfoFields(customer.name, customer.customerId, activeInteraction.threads);
-    const linkedLatestInteraction = buildLatestInteraction(customer.name, customer.customerId);
-    const linkedLatestNote = buildLatestNote(customer.name, customer.customerId);
-    setCustomerLinkedNote({
-      interactionId: customer.id,
-      channelKey: activeChannelKey,
-      atLiveMessageCount: activeInteraction.liveMessages?.[activeChannelKey]?.length ?? 0,
-      customerName: customer.name,
-      initials: initialsFor(customer.name),
-      contactNumber: customer.customerId,
-      balance: linkedFields.find((f) => f.label === "Balance")?.value,
-      snapshotItems: [linkedLatestInteraction.summary, linkedLatestNote.note],
-    });
+    // No separate Customer Summary note trigger needed here anymore — this
+    // reassigns `activeInteraction.id` to `customer.id` above, which the
+    // generic `shownCustomerSummaryIds` effect (above) already picks up as
+    // a brand-new id and shows its own fresh note for, sourced from this
+    // interaction's now-linked identity.
     addToast({
       variant: "success",
       title: "Linked to record",
@@ -1530,27 +1558,10 @@ export function AgentWorkspaceAdvancedPage({
       prev.map((interaction) => (interaction.id === fromId ? { ...interaction, id: newId, customerName: name } : interaction))
     );
     setActiveInteractionId(newId);
-    // Per explicit request — same inline "Customer Linked" note as
-    // `handleLinkCustomerRecord` above, see that call site's own doc
-    // comment for the full reasoning. `newRecord.paymentBalance` is used
-    // directly for Balance (the agent's own typed value, or its "$0.00"
-    // default) rather than `buildCustomerInfoFields`, which only reads
-    // `CREATE_NEW_CUSTOMERS` — a brand-new record isn't in that fixed
-    // array. `buildLatestInteraction`/`buildLatestNote` still apply
-    // unchanged, though: both synthesize purely from `name`/`newId`, with
-    // no dependency on the record actually existing in that array either.
-    const newCustomerLatestInteraction = buildLatestInteraction(name, newId);
-    const newCustomerLatestNote = buildLatestNote(name, newId);
-    setCustomerLinkedNote({
-      interactionId: newId,
-      channelKey: activeChannelKey,
-      atLiveMessageCount: activeInteraction.liveMessages?.[activeChannelKey]?.length ?? 0,
-      customerName: name,
-      initials: initialsFor(name),
-      contactNumber: newRecord.originalCustomerId || activeInteraction.customerId,
-      balance: newRecord.paymentBalance,
-      snapshotItems: [newCustomerLatestInteraction.summary, newCustomerLatestNote.note],
-    });
+    // No separate Customer Summary note trigger needed here either — same
+    // reasoning as `handleLinkCustomerRecord` above (this reassigns
+    // `activeInteraction.id` to `newId`, which the generic effect already
+    // covers).
     addToast({
       variant: "success",
       title: "Customer created",

@@ -694,9 +694,16 @@ function TypingIndicator({
 
 /* ── TranscriptCustomerLinkedNote ──
    Per explicit request: an inline card that animates into the live
-   conversation the moment an agent links/matches a real customer record to
-   the interaction (`handleLinkCustomerRecord`/`handleSaveNewCustomer`, each
-   page's own file) — mirrors a reference screenshot's "ATLAS" internal-note
+   conversation once, automatically, for EVERY interaction — see each
+   page's own `shownCustomerSummaryIds` ref + effect (keyed on
+   `activeInteraction?.id`) for exactly when it fires. (An earlier version
+   of this only fired from the explicit link/create-customer actions,
+   `handleLinkCustomerRecord`/`handleSaveNewCustomer` — corrected per
+   explicit follow-up, "I want it for ALL interactions"; those two handlers
+   still indirectly trigger it too, since both reassign
+   `activeInteraction.id` to the matched/created customer's own id, which
+   the per-page effect picks up as a brand-new id needing its own note.)
+   Mirrors a reference screenshot's "ATLAS" internal-note
    card (an AI assistant's inline summary + dismiss chevron), rebuilt here
    from this app's own REAL customer data (`buildCustomerInfoFields`'s
    "Balance"/"Contact #" fields, `buildLatestInteraction`/`buildLatestNote`'s
@@ -744,14 +751,14 @@ export function TranscriptCustomerLinkedNote({
       <div className="flex items-center justify-between gap-2 border-b border-lyra-border-subtle bg-lyra-status-success-subtle px-4 py-2.5">
         <div className="flex items-center gap-2">
           <UserCheck className="h-4 w-4 shrink-0 text-lyra-status-success-strong" strokeWidth={1.5} aria-hidden="true" />
-          <span className="lyra-body-md-emphasis text-lyra-fg-default">Customer Linked</span>
+          <span className="lyra-body-md-emphasis text-lyra-fg-default">Customer Summary</span>
         </div>
         <ActionIconButton size="sm" title="Dismiss customer summary" onClick={onDismiss}>
           <X className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" />
         </ActionIconButton>
       </div>
       <div className="flex flex-col gap-3 px-4 py-3">
-        <p className="lyra-body-md text-lyra-fg-default">You are now live with customer {customerName}.</p>
+        <p className="lyra-body-md text-lyra-fg-default">You are now working with customer {customerName}.</p>
         <div className="flex items-center justify-between gap-3 rounded-lyra-md border border-lyra-border-subtle bg-lyra-bg-control-subtle px-3 py-2.5">
           <div className="flex min-w-0 items-center gap-2">
             <span

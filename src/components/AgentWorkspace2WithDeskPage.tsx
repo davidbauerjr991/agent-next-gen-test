@@ -1918,15 +1918,14 @@ export function AgentWorkspace2WithDeskPage({
         : [],
     [activeInteraction?.customerName, activeInteraction?.customerId, activeInteraction?.threads]
   );
-  /** Per explicit request: the inline "Customer Linked" note that animates
-   *  into the transcript the moment `handleLinkCustomerRecord`/
-   *  `handleSaveNewCustomer` (below) promotes the active interaction to a
-   *  real customer — see `TranscriptCustomerLinkedNote`'s own top doc
-   *  comment (agent-next-gen-transcript.tsx) for the full reasoning/
-   *  content sourcing, and `AgentWorkspaceAdvancedPage.tsx`'s identical
-   *  state for the full "why interactionId+channelKey scoping"/"why
-   *  atLiveMessageCount is a one-time snapshot" reasoning — this tier's
-   *  own copy of the same feature. */
+  /** Per explicit request ("I want it for ALL interactions" — a follow-up
+   *  correction to the original, link-only trigger): the inline "Customer
+   *  Summary" note that animates into the transcript once, automatically,
+   *  the moment EVERY interaction becomes active — see
+   *  `TranscriptCustomerLinkedNote`'s own top doc comment
+   *  (agent-next-gen-transcript.tsx) and `AgentWorkspaceAdvancedPage.tsx`'s
+   *  identical state/effect for the full reasoning — this tier's own copy
+   *  of the same feature. */
   const [customerLinkedNote, setCustomerLinkedNote] = useState<{
     interactionId: string;
     channelKey: string;
@@ -1937,6 +1936,29 @@ export function AgentWorkspace2WithDeskPage({
     balance?: string;
     snapshotItems: string[];
   } | null>(null);
+  /** See `AgentWorkspaceAdvancedPage.tsx`'s identical `shownCustomerSummaryIds`
+   *  ref + effect pair for the full reasoning — this tier's own copy. */
+  const shownCustomerSummaryIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!activeInteraction) return;
+    if (shownCustomerSummaryIds.current.has(activeInteraction.id)) return;
+    shownCustomerSummaryIds.current.add(activeInteraction.id);
+    const name = activeInteraction.customerName ?? "Customer";
+    const fields = buildCustomerInfoFields(activeInteraction.customerName, activeInteraction.customerId, activeInteraction.threads);
+    const latestInteraction = buildLatestInteraction(activeInteraction.customerName, activeInteraction.customerId);
+    const latestNote = buildLatestNote(activeInteraction.customerName, activeInteraction.customerId);
+    setCustomerLinkedNote({
+      interactionId: activeInteraction.id,
+      channelKey: activeChannelKey,
+      atLiveMessageCount: activeInteraction.liveMessages?.[activeChannelKey]?.length ?? 0,
+      customerName: name,
+      initials: initialsFor(name),
+      contactNumber: activeInteraction.customerId,
+      balance: fields.find((f) => f.label === "Balance")?.value,
+      snapshotItems: [latestInteraction.summary, latestNote.note],
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeInteraction?.id]);
   const activeCustomerRecordDraft = useCustomerRecordDraft(
     activeCustomerFields,
     activeInteraction?.customerName,
@@ -2249,21 +2271,10 @@ export function AgentWorkspace2WithDeskPage({
       )
     );
     setActiveInteractionId(customer.id);
-    // Per explicit request — see `AgentWorkspaceAdvancedPage.tsx`'s
-    // identical call site for the full reasoning.
-    const linkedFields = buildCustomerInfoFields(customer.name, customer.customerId, activeInteraction.threads);
-    const linkedLatestInteraction = buildLatestInteraction(customer.name, customer.customerId);
-    const linkedLatestNote = buildLatestNote(customer.name, customer.customerId);
-    setCustomerLinkedNote({
-      interactionId: customer.id,
-      channelKey: activeChannelKey,
-      atLiveMessageCount: activeInteraction.liveMessages?.[activeChannelKey]?.length ?? 0,
-      customerName: customer.name,
-      initials: initialsFor(customer.name),
-      contactNumber: customer.customerId,
-      balance: linkedFields.find((f) => f.label === "Balance")?.value,
-      snapshotItems: [linkedLatestInteraction.summary, linkedLatestNote.note],
-    });
+    // No separate Customer Summary note trigger needed here — this
+    // reassigns `activeInteraction.id` to `customer.id` above, which the
+    // generic `shownCustomerSummaryIds` effect already picks up as a
+    // brand-new id and shows its own fresh note for.
     addToast({
       variant: "success",
       title: "Linked to record",
@@ -2331,22 +2342,8 @@ export function AgentWorkspace2WithDeskPage({
       prev.map((interaction) => (interaction.id === fromId ? { ...interaction, id: newId, customerName: name } : interaction))
     );
     setActiveInteractionId(newId);
-    // Per explicit request — see `AgentWorkspaceAdvancedPage.tsx`'s
-    // identical call site for the full reasoning (`newRecord.paymentBalance`
-    // used directly rather than `buildCustomerInfoFields`, which only reads
-    // `CREATE_NEW_CUSTOMERS`).
-    const newCustomerLatestInteraction = buildLatestInteraction(name, newId);
-    const newCustomerLatestNote = buildLatestNote(name, newId);
-    setCustomerLinkedNote({
-      interactionId: newId,
-      channelKey: activeChannelKey,
-      atLiveMessageCount: activeInteraction.liveMessages?.[activeChannelKey]?.length ?? 0,
-      customerName: name,
-      initials: initialsFor(name),
-      contactNumber: newRecord.originalCustomerId || activeInteraction.customerId,
-      balance: newRecord.paymentBalance,
-      snapshotItems: [newCustomerLatestInteraction.summary, newCustomerLatestNote.note],
-    });
+    // No separate Customer Summary note trigger needed here either — same
+    // reasoning as `handleLinkCustomerRecord` above.
     addToast({
       variant: "success",
       title: "Customer created",
