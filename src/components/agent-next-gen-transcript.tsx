@@ -2279,6 +2279,27 @@ export function InteractionTranscript({
     });
   };
 
+  // Per explicit request: a session that just got superseded by a reopen
+  // (i.e. it WAS `lastSessionId` — the live one — and now isn't, because a
+  // new `reopenedContacts` entry landed and took that title over) should
+  // collapse automatically, not sit there expanded until the agent notices
+  // it now reads "Closed" and clicks the collapse icon themselves. Tracks
+  // the previous `lastSessionId` in a ref purely to detect that one
+  // transition — comparing against `collapsedSessionIds` itself would only
+  // tell us the CURRENT collapsed set, not which session id just stopped
+  // being current. Deliberately only auto-collapses the session that just
+  // closed, not every historical session that already read "Closed" before
+  // this render (an agent who explicitly re-expanded an old session to
+  // re-read it keeps seeing it expanded — this never fights that choice).
+  const prevLastSessionIdRef = useRef(lastSessionId);
+  useEffect(() => {
+    const prevLastSessionId = prevLastSessionIdRef.current;
+    if (prevLastSessionId && prevLastSessionId !== lastSessionId) {
+      setCollapsedSessionIds((prev) => (prev.has(prevLastSessionId) ? prev : new Set(prev).add(prevLastSessionId)));
+    }
+    prevLastSessionIdRef.current = lastSessionId;
+  }, [lastSessionId]);
+
   // The CURRENT session's status is `currentStatus`, a prop from
   // `Interaction` (see its own doc comment for why) — every OTHER
   // (historical) session in this Thread always reads "Closed", full stop,
