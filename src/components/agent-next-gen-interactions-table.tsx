@@ -829,69 +829,76 @@ export function InteractionsListView({ onAddToast, onOpenInteraction }: Interact
 
   return (
     <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
-      {/* Own row, not `TableToolbar`'s own built-in `searchQuery`/
-          `onSearchChange` — see `SubmitSearchInput`'s own top-of-file doc
-          comment for why (defers filtering until submit, and needs its own
-          arrow button `TableToolbar`'s fixed search field has no slot for). */}
-      <div className="px-6 pt-3">
+      {/* `SubmitSearchInput` and `TableToolbar` as flex SIBLINGS in one row
+          (not `TableToolbar`'s own built-in `searchQuery`/`onSearchChange`
+          — see `SubmitSearchInput`'s own top-of-file doc comment for why),
+          rather than two stacked rows — `TableToolbar` renders its own
+          filters+actions as one already-flush row when `searchQuery` is
+          omitted (`hasSearch` false), so putting our own search box beside
+          it here, both sharing this wrapper's own `px-6 py-3`/`gap-2`
+          (removed from `TableToolbar`'s own className below so it doesn't
+          double up), reconstructs the original single-row search+filters+
+          actions layout almost exactly, still without touching
+          `TableToolbar` itself. */}
+      <div className="flex items-center gap-2 px-6 py-3">
         <SubmitSearchInput
           value={searchDraft}
           onValueChange={setSearchDraft}
           onSubmit={setSearchQuery}
           placeholder="Search"
-          className="max-w-[320px]"
+          className="shrink-0 max-w-[320px]"
+        />
+        <TableToolbar
+          className="flex-1 min-w-0 py-0"
+          filterDefs={filterDefs}
+          filterValues={filterValues}
+          onFilterChange={handleFilterChange}
+          onFilterClear={clearAllFilters}
+          // Create Date is always shown too, right alongside the `filterDefs`-
+          // driven chips — it renders as its own `DateRangeFilterChip` rather
+          // than through `filterDefs`, since that prop can only render plain
+          // multi-value `FilterChip`s, not a date range. No add-menu here per
+          // explicit request — every filter (including this one) is always
+          // on, with `TableToolbar`'s own overflow measurement collapsing
+          // whichever `filterDefs` chips don't fit into its "+N" trigger.
+          filters={
+            <DateRangeFilterChip
+              label="Create Date"
+              value={createDateRangeValue}
+              onValueChange={setCreateDateRangeValue}
+              customValue={createDateRangeCustom}
+              onCustomValueChange={setCreateDateRangeCustom}
+            />
+          }
+          actionDefs={[
+            { key: "refresh", label: "Refresh", icon: <RefreshCw className="h-4 w-4" strokeWidth={1.5} />, onClick: handleRefresh },
+          ]}
+          // Bulk action icons render here — the exact slot the old "Reset"
+          // (trash-can) action used to occupy — only while at least one row
+          // is checked, per explicit request (none of these actions delete
+          // anything, so the trash icon was removed outright rather than
+          // reused for them). See `InteractionBulkActionIcons`'s own doc
+          // comment.
+          actions={
+            <>
+              {selectedIds.size > 0 && (
+                <InteractionBulkActionIcons
+                  onAssignToMe={handleAssignToMe}
+                  onAssignToOther={handleAssignToOther}
+                  onAssignToSkill={handleAssignToSkill}
+                  onChangeStatus={handleChangeStatus}
+                  onSendMessage={handleSendMessage}
+                />
+              )}
+              <ColumnToggle
+                columns={INTERACTION_HISTORY_ALL_COLUMN_DEFS}
+                visibleColumns={visibleCols}
+                onVisibilityChange={setVisibleCols}
+              />
+            </>
+          }
         />
       </div>
-      <TableToolbar
-        className="px-6 pt-0"
-        filterDefs={filterDefs}
-        filterValues={filterValues}
-        onFilterChange={handleFilterChange}
-        onFilterClear={clearAllFilters}
-        // Create Date is always shown too, right alongside the `filterDefs`-
-        // driven chips — it renders as its own `DateRangeFilterChip` rather
-        // than through `filterDefs`, since that prop can only render plain
-        // multi-value `FilterChip`s, not a date range. No add-menu here per
-        // explicit request — every filter (including this one) is always
-        // on, with `TableToolbar`'s own overflow measurement collapsing
-        // whichever `filterDefs` chips don't fit into its "+N" trigger.
-        filters={
-          <DateRangeFilterChip
-            label="Create Date"
-            value={createDateRangeValue}
-            onValueChange={setCreateDateRangeValue}
-            customValue={createDateRangeCustom}
-            onCustomValueChange={setCreateDateRangeCustom}
-          />
-        }
-        actionDefs={[
-          { key: "refresh", label: "Refresh", icon: <RefreshCw className="h-4 w-4" strokeWidth={1.5} />, onClick: handleRefresh },
-        ]}
-        // Bulk action icons render here — the exact slot the old "Reset"
-        // (trash-can) action used to occupy — only while at least one row
-        // is checked, per explicit request (none of these actions delete
-        // anything, so the trash icon was removed outright rather than
-        // reused for them). See `InteractionBulkActionIcons`'s own doc
-        // comment.
-        actions={
-          <>
-            {selectedIds.size > 0 && (
-              <InteractionBulkActionIcons
-                onAssignToMe={handleAssignToMe}
-                onAssignToOther={handleAssignToOther}
-                onAssignToSkill={handleAssignToSkill}
-                onChangeStatus={handleChangeStatus}
-                onSendMessage={handleSendMessage}
-              />
-            )}
-            <ColumnToggle
-              columns={INTERACTION_HISTORY_ALL_COLUMN_DEFS}
-              visibleColumns={visibleCols}
-              onVisibilityChange={setVisibleCols}
-            />
-          </>
-        }
-      />
 
       <div className="flex-1 min-h-0 overflow-auto px-6">
         <Table style={{ minWidth: tableMinWidth }}>

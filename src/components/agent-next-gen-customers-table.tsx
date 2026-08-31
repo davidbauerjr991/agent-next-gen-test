@@ -1057,63 +1057,70 @@ export function CustomersListView({
     // Matches the sibling Dashboard-tab column's own `min-w-0` a few
     // lines below in this same file.
     <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
-      {/* Own row, not `TableToolbar`'s own built-in search box — see
-          `SubmitSearchInput`'s own top-of-file doc comment for why (defers
-          filtering until submit, and needs its own arrow button
-          `TableToolbar`'s fixed search field has no slot for). Omitted
+      {/* `SubmitSearchInput` and `TableToolbar` as flex SIBLINGS in one row
+          (not `TableToolbar`'s own built-in search box — see
+          `SubmitSearchInput`'s own top-of-file doc comment for why), rather
+          than two stacked rows — `TableToolbar` renders its own
+          filters+actions as one already-flush row when no search props are
+          passed (`hasSearch` false), so putting our own search box beside
+          it here, both sharing this wrapper's own `px-6 py-3`/`gap-2`
+          (removed from `TableToolbar`'s own className below so it doesn't
+          double up), reconstructs the original single-row search+filters+
+          actions layout almost exactly, still without touching
+          `TableToolbar` itself. `SubmitSearchInput` itself is omitted
           entirely whenever `viewsControl` is provided, same as the search
           box it replaces — see that prop's own doc comment. */}
-      {!viewsControl && (
-        <div className="px-6 pt-3">
+      <div className="flex items-center gap-2 px-6 py-3">
+        {!viewsControl && (
           <SubmitSearchInput
             value={searchDraft}
             onValueChange={setSearchDraft}
             onSubmit={onSearchChange}
             placeholder="Search"
-            className="max-w-[320px]"
+            className="shrink-0 max-w-[320px]"
           />
-        </div>
-      )}
-      <TableToolbar
-        className={cn("px-6", !viewsControl && "pt-0")}
-        // Omitted (rather than passed `undefined` conditionally inline)
-        // whenever `viewsControl` is provided — see that prop's own doc
-        // comment above for why this is the real way to get a toolbar with
-        // no filter chips, not a value fed into one that's still rendered.
-        {...(viewsControl
-          ? {}
-          : {
-              filterDefs,
-              filterValues,
-              onFilterChange: handleFilterChange,
-              onFilterClear: clearAllFilters,
-            })}
-        // No "+ Filter" add-menu here any more — per explicit request, every
-        // field is always on (`filterDefs` above), with `TableToolbar`'s own
-        // overflow measurement collapsing whichever don't fit into its "+N"
-        // trigger. `filters` now renders only `viewsControl` when a caller
-        // provides one (see that prop's own doc comment), or nothing.
-        filters={viewsControl}
-        actionDefs={[
-          { key: "refresh", label: "Refresh", icon: <RefreshCw className="h-4 w-4" strokeWidth={1.5} /> },
-          // Per explicit request, with a screenshot of the lucide "user-plus"
-          // icon: "update the icon for new customers to be user-plus instead
-          // of just + to avoid confusion with launching new interactions."
-          // This was previously a plain `Plus`, visually identical to every
-          // "launch a new interaction" trigger elsewhere in the app (e.g.
-          // `CreateNew`'s "New Outbound" button, `AddChannelAdHocButton`),
-          // making this toolbar button easy to misread as one of those
-          // rather than as customer creation specifically.
-          { key: "new", label: "New Customer", icon: <UserPlus className="h-4 w-4" strokeWidth={1.5} /> },
-        ]}
-        actions={
-          <ColumnToggle
-            columns={columnDefs}
-            visibleColumns={visibleCols}
-            onVisibilityChange={setVisibleCols}
-          />
-        }
-      />
+        )}
+        <TableToolbar
+          className="flex-1 min-w-0 py-0"
+          // Omitted (rather than passed `undefined` conditionally inline)
+          // whenever `viewsControl` is provided — see that prop's own doc
+          // comment above for why this is the real way to get a toolbar with
+          // no filter chips, not a value fed into one that's still rendered.
+          {...(viewsControl
+            ? {}
+            : {
+                filterDefs,
+                filterValues,
+                onFilterChange: handleFilterChange,
+                onFilterClear: clearAllFilters,
+              })}
+          // No "+ Filter" add-menu here any more — per explicit request, every
+          // field is always on (`filterDefs` above), with `TableToolbar`'s own
+          // overflow measurement collapsing whichever don't fit into its "+N"
+          // trigger. `filters` now renders only `viewsControl` when a caller
+          // provides one (see that prop's own doc comment), or nothing.
+          filters={viewsControl}
+          actionDefs={[
+            { key: "refresh", label: "Refresh", icon: <RefreshCw className="h-4 w-4" strokeWidth={1.5} /> },
+            // Per explicit request, with a screenshot of the lucide "user-plus"
+            // icon: "update the icon for new customers to be user-plus instead
+            // of just + to avoid confusion with launching new interactions."
+            // This was previously a plain `Plus`, visually identical to every
+            // "launch a new interaction" trigger elsewhere in the app (e.g.
+            // `CreateNew`'s "New Outbound" button, `AddChannelAdHocButton`),
+            // making this toolbar button easy to misread as one of those
+            // rather than as customer creation specifically.
+            { key: "new", label: "New Customer", icon: <UserPlus className="h-4 w-4" strokeWidth={1.5} /> },
+          ]}
+          actions={
+            <ColumnToggle
+              columns={columnDefs}
+              visibleColumns={visibleCols}
+              onVisibilityChange={setVisibleCols}
+            />
+          }
+        />
+      </div>
 
       <div className="flex-1 min-h-0 overflow-auto px-6">
         <Table style={{ minWidth: tableMinWidth }}>
