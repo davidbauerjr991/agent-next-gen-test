@@ -6,16 +6,49 @@
 // collapsed mode - add a search filters input to the top of the dropdown
 // that searches for filters"), for Customers only for now.
 //
-// This is real, documented lyra-ui behavior already — `TableToolbar`'s own
-// `collapsedFilterChip` (table.tsx) is exactly this "one chip, dropdown of
-// FilterChips, Clear all at the bottom" shape, just gated behind its own
-// internal `isNarrow` width measurement with no prop to force it on
-// unconditionally, and with no field-search box at all. Rather than fork
-// that internal, non-exported piece (a protected primitive), this
-// reimplements the same shape from real, PUBLIC primitives only
-// (`FilterChip`/`SearchInput`, both exported from `@nicecxone/lyra-ui`) —
-// same classNames/tokens as `collapsedFilterChip` itself, so it still looks
-// like part of the same design system, plus the new field-search box.
+// Built on lyra-ui's own real, public `Popover` primitive (`header`/
+// `content`/`footer` slots) — per explicit follow-up bug report ("is
+// there a min-height on this or something? it's getting cut off"). The
+// earlier version was a hand-rolled `position: absolute` div anchored
+// with a guessed `max-h-[70vh]` cap and no real collision detection: it
+// could open past whatever space was actually available below the
+// trigger, and — being plain `position: absolute` rather than portaled —
+// was vulnerable to being clipped by any scrollable ancestor (e.g. the
+// docked Search panel this renders inside). `Popover` solves both for
+// real: its content is portaled straight to `document.body` (escapes
+// ancestor overflow-clipping entirely), and Radix Popper's own
+// `avoidCollisions`/`--radix-popover-content-available-height` measure
+// the ACTUAL gap between the trigger and the nearest viewport edge, so
+// there's no fixed height to guess at all — see `select.tsx`'s own
+// multi-select listbox, the same Popover-based "search box (fixed) +
+// scrollable option list" shape this mirrors.
+//
+// Adopting the real `Popover` also retires every hand-rolled workaround
+// the old div-based version needed: no more manual outside-click
+// `mousedown` listener or its `data-radix-popper-content-wrapper`
+// closest() exemption (a real Radix `Popover.Root`'s own dismissable-
+// layer stack already recognizes a NESTED Radix-portaled layer — e.g. a
+// `FilterChip`'s own internal picker — as "inside", so selecting a filter
+// value no longer risks closing this dropdown out from under it — the
+// old hand-rolled div was never part of that layer stack in the first
+// place, which is why it needed the workaround at all); no more manual
+// `right-0`/`min-w`/`max-w` viewport-escape CSS (`align="end"` plus
+// Radix's real collision detection replace it, via `maxWidth` — a real
+// `Popover` prop for exactly this — instead of a calc() className hack);
+// no more local open/close toggle wiring on the trigger button
+// (`Popover`'s own `PopoverTrigger` "asChild" click handling covers it).
+//
+// The field list itself still uses the same hover-driven chevron-scroll
+// affordance lyra-ui's own real menu-style components use instead of a
+// native scrollbar (agent-next-gen-scroll-chevron.tsx, per explicit
+// request "the overflow should be the chevron scroll like other menus")
+// — same reasoning as before, just now living inside `Popover`'s
+// `content` slot instead of a hand-rolled wrapper div. `content`'s own
+// `h-full` stretches it to fill whatever real available height `Popover`
+// computed for its body region, so the chevron-scrolling inner list — not
+// `Popover`'s own body scroll region — is what actually scrolls in
+// practice (mirrors `select.tsx`'s own `content` nesting a second,
+// self-contained scroll region the same way).
 //
 // `CustomersListView` passes NO `filterDefs`/`filterValues`/`onFilterChange`/
 // `onFilterClear` to `TableToolbar` at all when using this (so its own
@@ -25,9 +58,9 @@
 // into `filters` alone is enough to keep `TableToolbar` treating this
 // toolbar as having filters (correct — it does), with no native chip
 // rendering left to conflict with this component's own.
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { FilterChip, SearchInput, type FilterChipOption } from "@nicecxone/lyra-ui";
+import { FilterChip, Popover, SearchInput, type FilterChipOption } from "@nicecxone/lyra-ui";
 import { cn } from "@/lib/utils";
 import { useScrollChevrons, ScrollChevronButton } from "@/components/agent-next-gen-scroll-chevron";
 
@@ -46,7 +79,6 @@ export function FiltersDropdownChip({
 }: FiltersDropdownChipProps) {
   const [open, setOpen] = useState(false);
   const [fieldSearch, setFieldSearch] = useState("");
-  const containerRef = useRef<HTMLDivElement>(null);
   // Same hover-driven chevron-scroll affordance lyra-ui's own real menu-
   // style components use for an overflowing list (`Select`'s multi-select
   // listbox, `MenuRadix`) instead of a plain scrollbar — see
@@ -58,32 +90,12 @@ export function FiltersDropdownChip({
     listRef.current?.scrollBy({ top: delta });
   };
 
-  // Same outside-click-closes behavior `collapsedFilterChip` gives its own
-  // dropdown — mousedown (not click) so it fires before whatever the click
-  // would otherwise trigger. The `data-radix-popper-content-wrapper` check
-  // is the same fix `collapsedFilterChip`/`filterOverflowChip` (table.tsx)
-  // both need for this identical shape: without it, picking a value inside
-  // one of the `FilterChip`s below — itself a separate Radix
-  // Popover/Select portaled to `document.body`, outside this container's
-  // own DOM subtree — reads as an outside click and closes this whole
-  // dropdown out from under the agent mid-selection. Every Radix
-  // Popper-based primitive (Popover, Select, DropdownMenu, Tooltip) wraps
-  // its portaled content in that same wrapper div.
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if ((e.target as Element)?.closest?.("[data-radix-popper-content-wrapper]")) return;
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
   // Reset the field-search box on close — reopening should start showing
   // every field again, not whatever was last typed.
-  useEffect(() => {
-    if (!open) setFieldSearch("");
-  }, [open]);
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) setFieldSearch("");
+  };
 
   const activeFilterCount = Object.values(filterValues).filter((v) => v.length > 0).length;
   const hasActiveFilters = activeFilterCount > 0;
@@ -91,14 +103,83 @@ export function FiltersDropdownChip({
   const visibleDefs = query ? filterDefs.filter((f) => f.label.toLowerCase().includes(query)) : filterDefs;
 
   return (
-    <div ref={containerRef} className="relative shrink-0">
+    <Popover
+      open={open}
+      onOpenChange={handleOpenChange}
+      placement="bottom"
+      // `align="end"` (not the default "center") — this chip is the only
+      // thing left in the toolbar's own filters area now, so it tends to
+      // sit well to the right in a narrow docked panel (e.g. the
+      // app-header's Search panel); aligning the panel's own end edge to
+      // the trigger's end edge keeps it growing leftward, matching the
+      // old hand-rolled version's `right-0` anchor without needing custom
+      // CSS for it.
+      align="end"
+      sideOffset={4}
+      showArrow={false}
+      // Full-bleed content (the field list already carries its own
+      // padding/insets below) — matches `select.tsx`'s own multi-select
+      // listbox for the identical reason.
+      bodyPadding={false}
+      maxWidth="calc(100vw - 1rem)"
+      className="min-w-[260px]"
+      header={
+        <div className="px-3 pt-3 pb-2">
+          <SearchInput
+            value={fieldSearch}
+            onValueChange={setFieldSearch}
+            placeholder="Search filters"
+            aria-label="Search filters"
+            size="sm"
+          />
+        </div>
+      }
+      footer={
+        hasActiveFilters ? (
+          <div className="px-3 pb-3 pt-2 border-t border-lyra-border-subtle">
+            <button
+              type="button"
+              onClick={() => {
+                onFilterClear();
+                setOpen(false);
+              }}
+              className="lyra-body-md text-lyra-fg-secondary hover:text-lyra-fg-default transition-colors text-left"
+            >
+              Clear all
+            </button>
+          </div>
+        ) : undefined
+      }
+      content={
+        <div className="flex h-full flex-col min-h-0 px-3 py-1">
+          {canScrollUp && <ScrollChevronButton direction="up" onStep={() => scrollListBy(-6)} />}
+          <div
+            ref={listRef}
+            onScroll={onListScroll}
+            className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-2 py-1 [&::-webkit-scrollbar]:hidden"
+            style={{ scrollbarWidth: "none" }}
+          >
+            {visibleDefs.length === 0 ? (
+              <p className="lyra-body-sm text-lyra-fg-disabled text-center py-2">No matching filters</p>
+            ) : (
+              visibleDefs.map((f) => (
+                <FilterChip
+                  key={f.key}
+                  label={f.label}
+                  options={f.options}
+                  selectedValues={filterValues[f.key] ?? []}
+                  onSelectionChange={(vals) => onFilterChange(f.key, vals)}
+                />
+              ))
+            )}
+          </div>
+        </div>
+      }
+    >
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-haspopup="true"
         className={cn(
-          "inline-flex items-center gap-1.5 h-8 px-3 rounded-lyra-md lyra-body-md-emphasis border transition-colors whitespace-nowrap",
+          "shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-lyra-md lyra-body-md-emphasis border transition-colors whitespace-nowrap",
           hasActiveFilters
             ? "bg-lyra-bg-active-subtle border-lyra-border-active text-lyra-fg-active-strong"
             : "bg-lyra-bg-control border-lyra-border-soft text-lyra-fg-default hover:bg-lyra-state-hover"
@@ -107,82 +188,6 @@ export function FiltersDropdownChip({
         Filters{hasActiveFilters ? `: ${activeFilterCount} Active` : ""}
         <ChevronDown className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" />
       </button>
-      {open && (
-        // `right-0` (not `left-0`, which `collapsedFilterChip` itself uses)
-        // — this chip is the only thing left in the toolbar's own filters
-        // area now, so it tends to sit well to the right in a narrow docked
-        // panel (e.g. the app-header's Search panel); a fixed-width panel
-        // opening flush-left of it there overflowed straight off the right
-        // edge of the panel. Anchoring to the button's own right edge and
-        // growing leftward instead keeps it inside a narrow container.
-        // `min-w-[260px]` (not a fixed `w-[260px]`, which clipped/overflowed
-        // a `FilterChip` whose own selected-values label renders wider than
-        // that, e.g. "Customer ID: CST-10000 +3") — same `min-w` (not fixed
-        // width) `collapsedFilterChip` itself uses, so this box always
-        // grows to actually fit its widest child instead of letting one
-        // poke out past its own edge. `max-w-[calc(100vw-1rem)]` is a hard
-        // backstop against the viewport itself for pathologically narrow
-        // cases — real collision detection (flipping/shifting to whichever
-        // side actually has room) needs a positioning primitive like
-        // `Popover`'s own Radix `avoidCollisions`, not plain CSS.
-        // `max-h-[70vh]` + `overflow-hidden` caps the panel's total height
-        // against the viewport — there's no ancestor to bound it against
-        // (it's `absolute`), so without this a long field list (e.g.
-        // Customers' 12 fields) just grows the box straight off the bottom
-        // of the screen. The field list itself no longer scrolls via a
-        // plain browser scrollbar — it now uses the same hover-driven
-        // chevron affordance `Select`'s own multi-select listbox uses for
-        // this identical shape (outer `flex flex-col` stacking the
-        // chevrons, pinned, around the actual scrolling div — see
-        // agent-next-gen-scroll-chevron.tsx and lyra-ui's own select.tsx
-        // for the reference structure this mirrors) — the search box and
-        // "Clear all" stay pinned in view outside that scrolling region.
-        <div className="absolute right-0 top-full mt-1 z-50 min-w-[260px] max-w-[calc(100vw-1rem)] max-h-[70vh] overflow-hidden rounded-lyra-md border border-lyra-border-subtle bg-lyra-bg-surface-overlay shadow-lg p-3 flex flex-col gap-2">
-          <SearchInput
-            value={fieldSearch}
-            onValueChange={setFieldSearch}
-            placeholder="Search filters"
-            aria-label="Search filters"
-            size="sm"
-          />
-          <div className="flex flex-1 flex-col min-h-0">
-            {canScrollUp && <ScrollChevronButton direction="up" onStep={() => scrollListBy(-6)} />}
-            <div
-              ref={listRef}
-              onScroll={onListScroll}
-              className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-2 [&::-webkit-scrollbar]:hidden"
-              style={{ scrollbarWidth: "none" }}
-            >
-              {visibleDefs.length === 0 ? (
-                <p className="lyra-body-sm text-lyra-fg-disabled text-center py-2">No matching filters</p>
-              ) : (
-                visibleDefs.map((f) => (
-                  <FilterChip
-                    key={f.key}
-                    label={f.label}
-                    options={f.options}
-                    selectedValues={filterValues[f.key] ?? []}
-                    onSelectionChange={(vals) => onFilterChange(f.key, vals)}
-                  />
-                ))
-              )}
-            </div>
-            {canScrollDown && <ScrollChevronButton direction="down" onStep={() => scrollListBy(6)} />}
-          </div>
-          {hasActiveFilters && (
-            <button
-              type="button"
-              onClick={() => {
-                onFilterClear();
-                setOpen(false);
-              }}
-              className="lyra-body-md text-lyra-fg-secondary hover:text-lyra-fg-default transition-colors text-left shrink-0"
-            >
-              Clear all
-            </button>
-          )}
-        </div>
-      )}
-    </div>
+    </Popover>
   );
 }
