@@ -1082,7 +1082,21 @@ export function CustomersListView({
           />
         )}
         <TableToolbar
-          className="flex-1 min-w-0 py-0"
+          // `gap-0` (overrides `TableToolbar`'s own base `gap-2`) — with no
+          // `searchQuery`/`onSearchChange` (search lives in our own sibling
+          // above instead), `TableToolbar` still unconditionally renders its
+          // row-1 wrapper div even though nothing inside it ever has content
+          // here (`hasSearch` is false and `hasFilters && !isNarrow` is
+          // false too, in this always-narrower-than-768px docked-panel
+          // context) — an empty div, but `flex-col gap-2`'s gap still
+          // applies between it and row 2 (the actual `isNarrow` filters+
+          // actions row), pushing that visible row 8px lower than our
+          // search box sitting right beside it. Safe to zero out `gap-2`
+          // entirely here: for this component's actual configuration
+          // (search always external), at most one of `TableToolbar`'s two
+          // rows ever has real content at a time, so the gap between them
+          // never needs to do anything.
+          className="flex-1 min-w-0 py-0 gap-0"
           // No `filterDefs`/`filterValues`/`onFilterChange`/`onFilterClear`
           // here — per explicit follow-up request ("make the filters a
           // single chip that says 'filters'... display a dropdown of the

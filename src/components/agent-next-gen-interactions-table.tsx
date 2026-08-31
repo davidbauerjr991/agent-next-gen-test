@@ -849,7 +849,19 @@ export function InteractionsListView({ onAddToast, onOpenInteraction }: Interact
           className="shrink-0 max-w-[320px]"
         />
         <TableToolbar
-          className="flex-1 min-w-0 py-0"
+          // `gap-0` (overrides `TableToolbar`'s own base `gap-2`) — with no
+          // `searchQuery`/`onSearchChange` (search lives in our own sibling
+          // above instead), `TableToolbar` still unconditionally renders its
+          // row-1 wrapper div even though nothing inside it ever has content
+          // here (`hasSearch` is false, and `hasFilters && !isNarrow` is
+          // false too whenever this docked panel is narrower than 768px,
+          // which it always is) — an empty div, but `flex-col gap-2`'s gap
+          // still applies between it and row 2 (the actual filters+actions
+          // row), pushing that visible row 8px lower than our search box
+          // sitting right beside it. Same fix as `CustomersListView`'s own
+          // identical `TableToolbar` usage — see that file's fuller
+          // reasoning on why zeroing this out is safe here.
+          className="flex-1 min-w-0 py-0 gap-0"
           filterDefs={filterDefs}
           filterValues={filterValues}
           onFilterChange={handleFilterChange}

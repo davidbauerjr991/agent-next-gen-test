@@ -49,10 +49,19 @@ export function FiltersDropdownChip({
 
   // Same outside-click-closes behavior `collapsedFilterChip` gives its own
   // dropdown — mousedown (not click) so it fires before whatever the click
-  // would otherwise trigger.
+  // would otherwise trigger. The `data-radix-popper-content-wrapper` check
+  // is the same fix `collapsedFilterChip`/`filterOverflowChip` (table.tsx)
+  // both need for this identical shape: without it, picking a value inside
+  // one of the `FilterChip`s below — itself a separate Radix
+  // Popover/Select portaled to `document.body`, outside this container's
+  // own DOM subtree — reads as an outside click and closes this whole
+  // dropdown out from under the agent mid-selection. Every Radix
+  // Popper-based primitive (Popover, Select, DropdownMenu, Tooltip) wraps
+  // its portaled content in that same wrapper div.
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
+      if ((e.target as Element)?.closest?.("[data-radix-popper-content-wrapper]")) return;
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener("mousedown", handler);
@@ -88,7 +97,19 @@ export function FiltersDropdownChip({
         <ChevronDown className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" />
       </button>
       {open && (
-        <div className="absolute left-0 top-full mt-1 z-50 min-w-[280px] rounded-lyra-md border border-lyra-border-subtle bg-lyra-bg-surface-overlay shadow-lg p-3 flex flex-col gap-2">
+        // `right-0` (not `left-0`, which `collapsedFilterChip` itself uses)
+        // — this chip is the only thing left in the toolbar's own filters
+        // area now, so it tends to sit well to the right in a narrow docked
+        // panel (e.g. the app-header's Search panel); a fixed-width panel
+        // opening flush-left of it there overflowed straight off the right
+        // edge of the panel. Anchoring to the button's own right edge and
+        // growing leftward instead keeps it inside a narrow container.
+        // `max-w-[calc(100vw-1rem)]` is a hard backstop against the
+        // viewport itself for pathologically narrow cases — real collision
+        // detection (flipping/shifting to whichever side actually has room)
+        // needs a positioning primitive like `Popover`'s own Radix
+        // `avoidCollisions`, not plain CSS.
+        <div className="absolute right-0 top-full mt-1 z-50 w-[260px] max-w-[calc(100vw-1rem)] rounded-lyra-md border border-lyra-border-subtle bg-lyra-bg-surface-overlay shadow-lg p-3 flex flex-col gap-2">
           <SearchInput
             value={fieldSearch}
             onValueChange={setFieldSearch}
