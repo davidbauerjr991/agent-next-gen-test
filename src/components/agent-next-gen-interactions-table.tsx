@@ -36,7 +36,7 @@
 // accordion, and per CLAUDE.md's lyra-ui rule (never change a shared thing's
 // existing behavior/shape for one new need), this tab gets its own type
 // instead of risking that other, narrower consumer.
-import { useState, useMemo, type ReactNode } from "react";
+import { useState, useMemo } from "react";
 import {
   type SortDirection,
   type DateRangeFilterValue,
@@ -282,7 +282,7 @@ export const INTERACTION_HISTORY_FIXED_COLUMNS_WIDTH = 40 /* checkbox */ + 48 /*
 
 /* ── Filters ── */
 
-export type InteractionHistoryFilterKey = "channel" | "status" | "skill" | "inboxAssignee" | "ownerAssignee" | "tags";
+type InteractionHistoryFilterKey = "channel" | "status" | "skill" | "inboxAssignee" | "ownerAssignee" | "tags";
 
 // Rendered as real `FilterChip`s via `TableToolbar`'s own `filterDefs` prop
 // (table.tsx — "Declarative filter definitions — renders FilterChip
@@ -302,12 +302,7 @@ export const INTERACTION_HISTORY_FILTER_FIELD_DEFS: { key: InteractionHistoryFil
 // filterable field — same "precompute once at module load" reasoning
 // `CUSTOMER_FILTER_VALUE_OPTIONS` already uses (the dataset never changes
 // at runtime).
-// Exported (widened from module-private) so `agent-next-gen-search-advanced.
-// tsx` can build the same categorical `FilterChip`s itself, now that its own
-// always-visible filter row replaces this component's in-table one whenever
-// `viewsControl` is set (see that prop's own doc comment) — same reason
-// `CUSTOMER_FILTER_VALUE_OPTIONS` is already exported for the Customers side.
-export const INTERACTION_HISTORY_FILTER_VALUE_OPTIONS: Record<InteractionHistoryFilterKey, { value: string; label: string }[]> = {
+const INTERACTION_HISTORY_FILTER_VALUE_OPTIONS: Record<InteractionHistoryFilterKey, { value: string; label: string }[]> = {
   channel: Array.from(new Set(INITIAL_INTERACTION_HISTORY_RECORDS.map((r) => r.channel))).map((v) => ({ value: v, label: v })),
   status: INTERACTION_STATUSES.map((v) => ({ value: v, label: v })),
   skill: Array.from(new Set(INITIAL_INTERACTION_HISTORY_RECORDS.map((r) => r.skill))).map((v) => ({ value: v, label: v })),
@@ -323,12 +318,7 @@ export const INTERACTION_HISTORY_FILTER_VALUE_OPTIONS: Record<InteractionHistory
 // fields `filterDefs` can render automatically) and gets its own
 // `DateRangeFilterChip` rendered directly in `InteractionsListView`'s
 // `filters` slot once added, right alongside the `filterDefs`-driven chips.
-// Exported (widened from module-private) so `agent-next-gen-search-advanced.
-// tsx` can recognize/pass this same key in its own permanent `addedFilterKeys`
-// constant and render the matching `DateRangeFilterChip` itself, now that its
-// always-visible filter row replaces this component's in-table one whenever
-// `viewsControl` is set.
-export const CREATE_DATE_RANGE_KEY = "createDateRange";
+const CREATE_DATE_RANGE_KEY = "createDateRange";
 export const INTERACTION_HISTORY_ADDABLE_FILTER_OPTIONS: { value: string; label: string }[] = [
   ...INTERACTION_HISTORY_FILTER_FIELD_DEFS.map((f) => ({ value: f.key, label: f.label })),
   { value: CREATE_DATE_RANGE_KEY, label: "Create Date" },
@@ -615,65 +605,9 @@ export interface InteractionsListViewProps {
    *  without a crash — a row click just silently no-ops in that case, same
    *  as `onAddToast` above. */
   onOpenInteraction?: (record: InteractionHistoryRecord) => void;
-  /** Per explicit request ("substitute a dropdown in place of the search —
-   *  can you do that without modifying the component?", later widened to
-   *  "move the filters above the line ... before the search is
-   *  implemented"): when provided, this whole list's filter UI moves out
-   *  of the in-table toolbar entirely — no search box, no `filterDefs`
-   *  chips, no "+ Filter" add-menu ("Create Date" included) — leaving just
-   *  this node (rendered where the search field used to be) plus the
-   *  unrelated `actionDefs`/`actions` (Refresh, `ColumnToggle`). Real,
-   *  documented mechanism, not a CSS hack: every one of `TableToolbar`'s
-   *  own `searchQuery`/`onSearchChange`/`filterDefs`/`filterValues`/
-   *  `onFilterChange`/`onFilterClear` props is independently optional —
-   *  omitting all of them is the real way to get a toolbar with none of
-   *  that, not a value fed into pieces that still render. The caller is
-   *  then expected to render its OWN filter chips elsewhere using the
-   *  controlled `addedFilterKeys`/`filterValues`/`createDateRange*` props
-   *  below — which is exactly why those exist. Omit entirely (default)
-   *  for the toolbar's normal, fully self-contained real search+filter
-   *  row, unchanged — only Agent Workspace Advanced's own Search panel
-   *  (agent-next-gen-search-advanced.tsx) passes this today. */
-  viewsControl?: ReactNode;
-  /** Controlled `addedFilterKeys` — which fields count as "active" filters
-   *  (can hold `CREATE_DATE_RANGE_KEY` alongside the 6 categorical keys,
-   *  same as this component's own internal state always could). Provide
-   *  BOTH this and `onAddedFilterKeysChange` to move filter-chip rendering
-   *  to an external caller (see `viewsControl`'s own doc comment) while
-   *  this component keeps filtering `records` by whatever's here, same as
-   *  always. Omit both (default) for the normal internal, uncontrolled
-   *  `useState` this held before — starts empty, mutated only via this
-   *  component's own now-hidden-when-`viewsControl`-is-set "+ Filter" menu. */
-  addedFilterKeys?: string[];
-  onAddedFilterKeysChange?: (keys: string[]) => void;
-  /** Controlled `filterValues` — selected values per filter key. Same
-   *  controlled-when-both-provided pairing as `addedFilterKeys` above. */
-  filterValues?: Record<string, string[]>;
-  onFilterValuesChange?: (values: Record<string, string[]>) => void;
-  /** Controlled "Create Date" range selection — same controlled-when-both-
-   *  provided pairing as `addedFilterKeys`/`filterValues` above, split into
-   *  its own pair since it's a `DateRangeFilterChip` value, not a plain
-   *  `filterValues` entry (see `CREATE_DATE_RANGE_KEY`'s own doc comment
-   *  for why). */
-  createDateRangeValue?: DateRangeFilterValue;
-  onCreateDateRangeValueChange?: (value: DateRangeFilterValue) => void;
-  createDateRangeCustom?: DateRangePickerProps["value"];
-  onCreateDateRangeCustomChange?: (value: DateRangePickerProps["value"]) => void;
 }
 
-export function InteractionsListView({
-  onAddToast,
-  onOpenInteraction,
-  viewsControl,
-  addedFilterKeys: controlledAddedFilterKeys,
-  onAddedFilterKeysChange,
-  filterValues: controlledFilterValues,
-  onFilterValuesChange,
-  createDateRangeValue: controlledCreateDateRangeValue,
-  onCreateDateRangeValueChange,
-  createDateRangeCustom: controlledCreateDateRangeCustom,
-  onCreateDateRangeCustomChange,
-}: InteractionsListViewProps = {}) {
+export function InteractionsListView({ onAddToast, onOpenInteraction }: InteractionsListViewProps = {}) {
   // Own copy of the seed data — mutated in place by the bulk-actions
   // toolbar's three "apply to every selected row" handlers below (Assign to
   // Me/Assign to Others/Change Status). `INITIAL_INTERACTION_HISTORY_RECORDS`
@@ -683,39 +617,15 @@ export function InteractionsListView({
   const [searchQuery, setSearchQuery] = useState("");
   // Which fields the agent has added via the "+ Filter" menu — same
   // "starts empty, nothing renders until explicitly added" shape
-  // `CustomersListView`'s own `addedFilterKeys` uses when uncontrolled.
-  // Controlled-when-provided, same hybrid pattern `AgentSearch`'s own
-  // `query`/`onQueryChange` pair uses (agent-search.tsx) — see
-  // `addedFilterKeys`'s own doc comment on `InteractionsListViewProps` for
-  // why. Can hold `CREATE_DATE_RANGE_KEY` alongside the 6 categorical
+  // `CustomersListView`'s own `addedFilterKeys` uses. Can hold
+  // `CREATE_DATE_RANGE_KEY` alongside the 6 categorical
   // `InteractionHistoryFilterFieldDefs` keys — see that key's own doc
-  // comment for why it's tracked here even though it doesn't go through
-  // `filterValues` below.
-  const [internalAddedFilterKeys, setInternalAddedFilterKeys] = useState<string[]>([]);
-  const addedFilterKeys = controlledAddedFilterKeys ?? internalAddedFilterKeys;
-  const setAddedFilterKeys = (keys: string[]) => {
-    if (onAddedFilterKeysChange) onAddedFilterKeysChange(keys);
-    else setInternalAddedFilterKeys(keys);
-  };
-  const [internalFilterValues, setInternalFilterValues] = useState<Record<string, string[]>>({});
-  const filterValues = controlledFilterValues ?? internalFilterValues;
-  const setFilterValues = (next: Record<string, string[]> | ((prev: Record<string, string[]>) => Record<string, string[]>)) => {
-    const resolved = typeof next === "function" ? next(filterValues) : next;
-    if (onFilterValuesChange) onFilterValuesChange(resolved);
-    else setInternalFilterValues(resolved);
-  };
-  const [internalCreateDateRangeValue, setInternalCreateDateRangeValue] = useState<DateRangeFilterValue>("today");
-  const createDateRangeValue = controlledCreateDateRangeValue ?? internalCreateDateRangeValue;
-  const setCreateDateRangeValue = (value: DateRangeFilterValue) => {
-    if (onCreateDateRangeValueChange) onCreateDateRangeValueChange(value);
-    else setInternalCreateDateRangeValue(value);
-  };
-  const [internalCreateDateRangeCustom, setInternalCreateDateRangeCustom] = useState<DateRangePickerProps["value"]>(undefined);
-  const createDateRangeCustom = controlledCreateDateRangeCustom ?? internalCreateDateRangeCustom;
-  const setCreateDateRangeCustom = (value: DateRangePickerProps["value"]) => {
-    if (onCreateDateRangeCustomChange) onCreateDateRangeCustomChange(value);
-    else setInternalCreateDateRangeCustom(value);
-  };
+  // comment for why it's still tracked here even though it doesn't go
+  // through `filterValues` below.
+  const [addedFilterKeys, setAddedFilterKeys] = useState<string[]>([]);
+  const [filterValues, setFilterValues] = useState<Record<string, string[]>>({});
+  const [createDateRangeValue, setCreateDateRangeValue] = useState<DateRangeFilterValue>("today");
+  const [createDateRangeCustom, setCreateDateRangeCustom] = useState<DateRangePickerProps["value"]>(undefined);
   const [visibleCols, setVisibleCols] = useState<Set<string>>(INTERACTION_HISTORY_DEFAULT_VISIBLE_COLUMNS);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // Defaults to Status ascending — matches the reference screenshot's own
@@ -937,22 +847,13 @@ export function InteractionsListView({
     <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
       <TableToolbar
         className="px-6"
-        // Both omitted (rather than passed `undefined` conditionally
-        // inline) whenever `viewsControl` is provided — see that prop's
-        // own doc comment above for why this is the real way to get a
-        // toolbar with no search box, not a value fed into one that's
-        // still rendered.
-        {...(viewsControl
-          ? {}
-          : {
-              searchQuery,
-              onSearchChange: setSearchQuery,
-              searchPlaceholder: "Search",
-              filterDefs,
-              filterValues,
-              onFilterChange: handleFilterChange,
-              onFilterClear: clearAllFilters,
-            })}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Search"
+        filterDefs={filterDefs}
+        filterValues={filterValues}
+        onFilterChange={handleFilterChange}
+        onFilterClear={clearAllFilters}
         // The "+ Filter" add-menu itself, right after the `filterDefs`-
         // driven chips it decides the contents of — same composition/order
         // `CustomersListView`'s own `filters` slot uses (`Select multiple
@@ -961,47 +862,38 @@ export function InteractionsListView({
         // `INTERACTION_HISTORY_ADDABLE_FILTER_OPTIONS`'s own doc comment)
         // but renders as its own `DateRangeFilterChip` before the trigger,
         // once added, rather than through `filterDefs` — that prop can only
-        // render plain multi-value `FilterChip`s, not a date range. All of
-        // this — `filterDefs`/`filterValues`/`onFilterChange`/`onFilterClear`
-        // above included — is omitted entirely whenever `viewsControl` is
-        // passed (see that prop's own doc comment): `filters` then renders
-        // ONLY `viewsControl` itself, no chips, no "Create Date", no
-        // add-menu — the caller is expected to render its own filter chips
-        // elsewhere using the controlled `addedFilterKeys`/`filterValues`/
-        // `createDateRange*` props instead.
+        // render plain multi-value `FilterChip`s, not a date range.
         filters={
-          viewsControl ?? (
-            <>
-              {createDateRangeAdded && (
-                <DateRangeFilterChip
-                  label="Create Date"
-                  value={createDateRangeValue}
-                  onValueChange={setCreateDateRangeValue}
-                  customValue={createDateRangeCustom}
-                  onCustomValueChange={setCreateDateRangeCustom}
-                />
-              )}
-              <Select
-                options={INTERACTION_HISTORY_ADDABLE_FILTER_OPTIONS}
-                multiple
-                searchable
-                showSelectAll
-                dropdownAlign="left"
-                values={addedFilterKeys}
-                onValuesChange={handleAddedFiltersChange}
-                trigger={
-                  <button
-                    type="button"
-                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lyra-sm lyra-label transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lyra-border-focus focus-visible:ring-offset-2 border border-lyra-border-soft bg-lyra-bg-control text-lyra-fg-action hover:bg-lyra-state-hover active:bg-lyra-state-pressed h-8 px-3"
-                  >
-                    <Plus className="h-4 w-4" strokeWidth={1.5} />
-                    Filter
-                  </button>
-                }
-                className="inline-flex relative"
+          <>
+            {createDateRangeAdded && (
+              <DateRangeFilterChip
+                label="Create Date"
+                value={createDateRangeValue}
+                onValueChange={setCreateDateRangeValue}
+                customValue={createDateRangeCustom}
+                onCustomValueChange={setCreateDateRangeCustom}
               />
-            </>
-          )
+            )}
+            <Select
+              options={INTERACTION_HISTORY_ADDABLE_FILTER_OPTIONS}
+              multiple
+              searchable
+              showSelectAll
+              dropdownAlign="left"
+              values={addedFilterKeys}
+              onValuesChange={handleAddedFiltersChange}
+              trigger={
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lyra-sm lyra-label transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lyra-border-focus focus-visible:ring-offset-2 border border-lyra-border-soft bg-lyra-bg-control text-lyra-fg-action hover:bg-lyra-state-hover active:bg-lyra-state-pressed h-8 px-3"
+                >
+                  <Plus className="h-4 w-4" strokeWidth={1.5} />
+                  Filter
+                </button>
+              }
+              className="inline-flex relative"
+            />
+          </>
         }
         actionDefs={[
           { key: "refresh", label: "Refresh", icon: <RefreshCw className="h-4 w-4" strokeWidth={1.5} />, onClick: handleRefresh },

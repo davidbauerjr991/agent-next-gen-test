@@ -146,7 +146,7 @@ import {
   type CustomerFilterKey,
   CustomersListView,
 } from "@/components/agent-next-gen-customers-table";
-import { useAdvancedSearchContent } from "@/components/agent-next-gen-search-advanced";
+import { useSearchPanelContent, type SearchPanelTabKey } from "@/components/agent-next-gen-search-panel";
 import { type InteractionHistoryRecord } from "@/components/agent-next-gen-interactions-table";
 import {
   type CustomerHistorySessionEntry,
@@ -424,6 +424,16 @@ const SCREEN_POP_APPS: SelectOption[] = [
   { value: "launch",             label: "Launch" },
   { value: "custom-workspace",   label: "Custom Workspace" },
 ];
+
+// Search panel's own sub-tabs (`useSearchPanelContent`, agent-next-gen-
+// search-panel.tsx) — all 4 tabs, with "interactions" listed FIRST per
+// explicit request (was "customers" first, per an earlier explicit
+// request — reverted per this later one, "have Interactions be the first
+// tab visible" instead): that hook treats the first entry as both the
+// leftmost tab AND its own default active tab. `AgentWorkspace2WithDeskPage.tsx`
+// passes its own, shorter list (just Messages/Threads) to the same hook
+// instead of this constant — see that file's own call site.
+const SEARCH_PANEL_TABS: SearchPanelTabKey[] = ["interactions", "customers", "messages", "threads"];
 
 // Builds a `tagOpenChannels` closure off of the given `interactions` — reads
 // each `Thread.type`/`.value` (skipping any channel the agent has
@@ -3954,8 +3964,8 @@ export function AgentWorkspaceAdvancedPage({
     setNotifications((prev) => prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n)));
   };
 
-  // Wired to the Search panel's Contacts entity (`InteractionsListView`'s
-  // own `onOpenInteraction`, via `useAdvancedSearchContent` below) — per
+  // Wired to the Search panel's Interactions tab (`InteractionsListView`'s
+  // own `onOpenInteraction`, via `useSearchPanelContent` below) — per
   // explicit request, clicking a row there opens it as a real, active
   // assignment in the left nav, same shape `handleOpenAssignmentFromNotification`
   // just above already builds from a notification click: NOT `startedFresh`
@@ -4146,15 +4156,16 @@ export function AgentWorkspaceAdvancedPage({
   // initial array and the `activeDeskTab` render branch further down,
   // both of which no longer include `"interactions"`).
   //
-  // Built via `useAdvancedSearchContent` (agent-next-gen-search-advanced.tsx)
-  // — per explicit request (with a reference screenshot), this page's own
-  // Search panel now leads with a "Customers"/"Contacts"/"Messages"/
-  // "Threads" dropdown next to a real search field and an explicit
-  // "Search" button, gated behind that click, rather than the TabList-
-  // based `useSearchPanelContent` (agent-next-gen-search-panel.tsx) still
-  // used unchanged by `AgentNextGenPage.tsx`/`AgentWorkspace2WithDeskPage.
-  // tsx`. Deliberately a SEPARATE hook/file, not a change to that shared
-  // one — see this page's own import for the full reasoning.
+  // Built via the shared `useSearchPanelContent` hook (agent-next-gen-
+  // search-panel.tsx) — per a follow-up explicit request, this Search
+  // panel's tab/content system is now shared with
+  // `AgentWorkspace2WithDeskPage.tsx` too (that page passes a trimmed
+  // `tabs` list — just Messages/Threads — and no `customers` bag, since it
+  // has no Customers concept in its own Search panel; see that file's own
+  // call site). This page passes all 4 tabs, with `"customers"` listed
+  // FIRST — per explicit request ("have Customers be the first tab
+  // visible") — which the hook treats as both the leftmost tab AND its own
+  // default active tab (see that hook's own `tabs[0]` initializer).
   //
   // Customers' body reuses the EXACT SAME lifted state the desk
   // dashboard's own "Customers" tab already uses (`customerSortedRows`,
@@ -4171,17 +4182,21 @@ export function AgentWorkspaceAdvancedPage({
   // render synced views of that one shared state, and acting on either
   // updates it for both.
   //
-  // This page's own 3 panel-render call sites (docked/fullscreen/combined-
-  // mode) skip their normal `<div className="shrink-0 px-4 pb-3 border-b
-  // ...">` headerContent wrapper ENTIRELY whenever `activePanelKey ===
-  // "search"` — a special case built for the OLD TabList, which wanted to
-  // sit flush against the panel's own edges with no inset and drew its own
-  // `border-b` right under the tab row. This new dropdown+search+button
-  // row isn't flush-edge chrome the same way a tab row is, so rather than
-  // touch those 3 call sites' shared special case (unnecessary churn for a
-  // check that's otherwise still correct), `useAdvancedSearchContent`'s own
-  // `headerContent` below supplies that same padding+border itself.
-  const searchContent = useAdvancedSearchContent({
+  // The headerContent wrapper these 3 panel-render call sites already put
+  // around EVERY panel's `headerContent` (docked/fullscreen/combined-mode,
+  // all `<div className="shrink-0 px-4 pb-3 border-b ...">`) draws its own
+  // `border-b` right underneath regardless, so a `TabList` here — which
+  // already has its own `border-b` right under the tab row itself — showed
+  // two stacked horizontal lines: the tab row's own bottom border (the
+  // "tab separator", flush under the labels/active-indicator) AND that
+  // wrapper's (the "heading separator", a few pixels further down, below
+  // the wrapper's own `pb-3` padding). Per explicit request, it's the
+  // WRAPPER's border that's suppressed here (not the TabList's own) — see
+  // each of those 3 call sites' own `activePanelKey === "search"` check —
+  // so the single remaining divider is the tab row's own, flush underline,
+  // not the lower one.
+  const searchContent = useSearchPanelContent({
+    tabs: SEARCH_PANEL_TABS,
     onAddToast: addToast,
     onOpenInteraction: handleOpenInteractionRow,
     customers: {
@@ -4201,7 +4216,7 @@ export function AgentWorkspaceAdvancedPage({
       // Customers sub-tab specifically, per that request's own wording.
       // The panel's pop-out/full-screen toggle is suppressed separately —
       // see `hideFullScreenToggle` at this branch's `CustomerRowInfoPanel`
-      // call site (agent-next-gen-search-advanced.tsx).
+      // call site (agent-next-gen-search-panel.tsx).
       onRowClick: (row) =>
         setSelectedCustomerRow((prev) => (prev?.contactNumber === row.contactNumber ? null : row)),
       searchQuery: customerSearchQuery,
@@ -5210,15 +5225,16 @@ export function AgentWorkspaceAdvancedPage({
           />
           {activePanelContent.headerContent && (
             // `activePanelKey === "search"` skips this wrapper ENTIRELY
-            // (no padding, no border) for the Search panel's own
-            // headerContent, which supplies its own padding/border itself
-            // instead (see `searchContent`'s own doc comment —
-            // agent-next-gen-search-advanced.tsx — for why: this special
-            // case predates that file, built for the old TabList-based
-            // header it replaced, which wanted to sit flush against the
-            // panel's own edges rather than inset like every other panel's
-            // headerContent (Screen Pop's Select, etc.), which still gets
-            // the padded, bordered wrapper as before).
+            // (no padding, no border) for the Search panel's tabbed
+            // headerContent, per explicit request — its `TabList` is meant
+            // to sit flush against the panel's own edges (left/right/
+            // bottom), not inset like every other panel's headerContent
+            // (Screen Pop's Select, etc.), which still gets the padded,
+            // bordered wrapper as before. `TabList` already draws its own
+            // "tab separator" underline right under the tabs themselves
+            // regardless (see `searchContent`'s own doc comment), so
+            // there's still a real divider here even with the wrapper
+            // gone.
             activePanelKey === "search" ? (
               activePanelContent.headerContent
             ) : (
@@ -5469,11 +5485,10 @@ export function AgentWorkspaceAdvancedPage({
                 just shows its own blank placeholder body, no bespoke
                 content yet since none of the four has a real data source
                 in this prototype. Search is the one exception — its body
-                is the real `CustomersListView`/`InteractionsListView`
-                (the latter moved in from the old "Interactions" desk tab)
-                behind a Customers/Contacts/Messages/Threads dropdown in
-                `headerContent` (see `searchContent`'s own doc comment for
-                the full story).
+                is the real `InteractionsListView` (moved in from the old
+                "Interactions" desk tab) behind a Contacts/Messages/
+                Customers/Threads `TabList` in `headerContent` (see
+                `searchContent`'s own doc comment for the full story).
                 WEM = Workforce Engagement Management — `UserCog` (a
                 person + a settings/management gear) per explicit request
                 for "an appropriate Workforce management Lucide icon",

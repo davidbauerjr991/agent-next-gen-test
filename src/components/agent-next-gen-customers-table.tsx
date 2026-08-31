@@ -853,7 +853,6 @@ export function CustomersListView({
   openRowId,
   leadingChannelStack = false,
   isRowOpen,
-  viewsControl,
 }: {
   onStartInteraction: (contact: CreateNewOutboundContact, channel: ChannelType, phone: string, skillId: string) => void;
   // Filter state is a controlled prop, not local `useState`, so it lives on
@@ -934,29 +933,6 @@ export function CustomersListView({
    * that call site).
    */
   isRowOpen?: (row: CustomerListRecord) => boolean;
-  /**
-   * Per explicit request ("substitute a dropdown in place of the search —
-   * can you do that without modifying the component?", later widened to
-   * "move the filters above the line ... before the search is
-   * implemented"): when provided, this table's filter UI moves out of the
-   * toolbar entirely — no search box, no `filterDefs` chips, no
-   * "+ Filter" add-menu — leaving just this node (rendered where the
-   * search field used to be) plus the unrelated `actionDefs`/`actions`
-   * (Refresh, New Customer, `ColumnToggle`). Real, documented mechanism,
-   * not a CSS hack: every one of `TableToolbar`'s own `searchQuery`/
-   * `onSearchChange`/`filterDefs`/`filterValues`/`onFilterChange`/
-   * `onFilterClear` props is independently optional — omitting all of
-   * them is the real way to get a toolbar with none of that, not a value
-   * fed into pieces that still render. The caller is then expected to
-   * render its own filter chips elsewhere using the `filterValues`/
-   * `onFilterValuesChange` props above directly (already fully lifted/
-   * controlled for every consumer, unlike `InteractionsListView`'s own
-   * equivalent). Omit entirely (default) for the toolbar's normal, fully
-   * self-contained real search+filter row, unchanged — only Agent
-   * Workspace Advanced's own Search panel (agent-next-gen-search-
-   * advanced.tsx) passes this today.
-   */
-  viewsControl?: React.ReactNode;
 }) {
   // `"channels"` is dropped from the column system entirely in
   // `leadingChannelStack` mode — it's no longer a normal column at all
@@ -1044,21 +1020,12 @@ export function CustomersListView({
     <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
       <TableToolbar
         className="px-6"
-        // Both omitted (rather than passed `undefined` conditionally
-        // inline) whenever `viewsControl` is provided — see that prop's
-        // own doc comment above for why this is the real way to get a
-        // toolbar with no search box, not a value fed into one that's
-        // still rendered.
-        {...(viewsControl
-          ? {}
-          : {
-              searchQuery,
-              onSearchChange,
-              filterDefs,
-              filterValues,
-              onFilterChange: handleFilterChange,
-              onFilterClear: clearAllFilters,
-            })}
+        searchQuery={searchQuery}
+        onSearchChange={onSearchChange}
+        filterDefs={filterDefs}
+        filterValues={filterValues}
+        onFilterChange={handleFilterChange}
+        onFilterClear={clearAllFilters}
         // The "+ Filter" add-menu itself — `TableToolbar`'s own `filters`
         // slot renders right alongside the `filterDefs`-driven chips above
         // (table.tsx: filterChips, then filters, then the Clear button),
@@ -1071,33 +1038,27 @@ export function CustomersListView({
         // are active at all" control that decides what shows up in
         // `filterDefs` in the first place, same distinction
         // FilterChip.stories.tsx's own demo draws between its per-filter
-        // chips and this single add-menu. All of this — `filterDefs`/
-        // `filterValues`/`onFilterChange`/`onFilterClear` above included —
-        // is omitted entirely whenever `viewsControl` is passed (see that
-        // prop's own doc comment): `filters` then renders ONLY
-        // `viewsControl` itself, no chips, no add-menu.
+        // chips and this single add-menu.
         filters={
-          viewsControl ?? (
-            <Select
-              options={CUSTOMER_FILTER_FIELD_DEFS.map((f) => ({ value: f.key, label: f.label }))}
-              multiple
-              searchable
-              showSelectAll
-              dropdownAlign="left"
-              values={addedFilterKeys}
-              onValuesChange={handleAddedFiltersChange}
-              trigger={
-                <button
-                  type="button"
-                  className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lyra-sm lyra-label transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lyra-border-focus focus-visible:ring-offset-2 border border-lyra-border-soft bg-lyra-bg-control text-lyra-fg-action hover:bg-lyra-state-hover active:bg-lyra-state-pressed h-8 px-3"
-                >
-                  <Plus className="h-4 w-4" strokeWidth={1.5} />
-                  Filter
-                </button>
-              }
-              className="inline-flex relative"
-            />
-          )
+          <Select
+            options={CUSTOMER_FILTER_FIELD_DEFS.map((f) => ({ value: f.key, label: f.label }))}
+            multiple
+            searchable
+            showSelectAll
+            dropdownAlign="left"
+            values={addedFilterKeys}
+            onValuesChange={handleAddedFiltersChange}
+            trigger={
+              <button
+                type="button"
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lyra-sm lyra-label transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lyra-border-focus focus-visible:ring-offset-2 border border-lyra-border-soft bg-lyra-bg-control text-lyra-fg-action hover:bg-lyra-state-hover active:bg-lyra-state-pressed h-8 px-3"
+              >
+                <Plus className="h-4 w-4" strokeWidth={1.5} />
+                Filter
+              </button>
+            }
+            className="inline-flex relative"
+          />
         }
         actionDefs={[
           { key: "refresh", label: "Refresh", icon: <RefreshCw className="h-4 w-4" strokeWidth={1.5} /> },
