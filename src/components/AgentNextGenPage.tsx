@@ -5106,7 +5106,21 @@ export function AgentNextGenPage({
         </>
       )}
     >
-      {activePanelContent.body}
+      {/* Per explicit request ("when the user navigates between apps,
+          please have them fade in when transitioning"): `key={activePanelKey}`
+          forces a fresh mount on every app switch (Home/Search/Agent Chat/
+          Schedule/etc.), which is what lets `animate-in fade-in-0` actually
+          replay instead of only firing once ever — same "force a remount to
+          replay animate-in" pattern this file's own desk-tab switch and
+          active-interaction switch already use elsewhere in this file.
+          Applied identically at every render site of `activePanelContent.
+          body` (this docked/float `Draggable`, the fullscreen overlay, "no
+          active interaction" `primaryPanelView`, and the combined-mode
+          panel below) so the fade is consistent regardless of which layout
+          is currently active. */}
+      <div key={activePanelKey} className="flex flex-col flex-1 min-h-0 animate-in fade-in-0 duration-200">
+        {activePanelContent.body}
+      </div>
     </Draggable>
   ) : null;
 
@@ -5229,7 +5243,13 @@ export function AgentNextGenPage({
           </div>
         ))
       )}
-      <div className="flex flex-col flex-1 min-h-0">{activePanelContent.body}</div>
+      {/* Per explicit request ("... fade in when transitioning" — see the
+          docked variant's own matching wrapper above for the full doc
+          comment): `key={activePanelKey}` forces a remount on every app
+          switch so `animate-in fade-in-0` replays each time. */}
+      <div key={activePanelKey} className="flex flex-col flex-1 min-h-0 animate-in fade-in-0 duration-200">
+        {activePanelContent.body}
+      </div>
     </div>
   ) : null;
 
@@ -5271,7 +5291,13 @@ export function AgentNextGenPage({
           </div>
         )
       )}
-      <div className="flex flex-col flex-1 min-h-0">{activePanelContent.body}</div>
+      {/* Per explicit request ("... fade in when transitioning" — see the
+          docked variant's own matching wrapper above for the full doc
+          comment): `key={activePanelKey}` forces a remount on every app
+          switch so `animate-in fade-in-0` replays each time. */}
+      <div key={activePanelKey} className="flex flex-col flex-1 min-h-0 animate-in fade-in-0 duration-200">
+        {activePanelContent.body}
+      </div>
     </div>
   ) : null;
 
@@ -7068,7 +7094,14 @@ export function AgentNextGenPage({
                     </div>
                   ))
                 )}
-                {activePanelContent.body}
+                {/* Per explicit request ("... fade in when transitioning" —
+                    see the docked variant's own matching wrapper above for
+                    the full doc comment): `key={activePanelKey}` forces a
+                    remount on every app switch so `animate-in fade-in-0`
+                    replays each time. */}
+                <div key={activePanelKey} className="flex flex-col flex-1 min-h-0 animate-in fade-in-0 duration-200">
+                  {activePanelContent.body}
+                </div>
               </div>
             )}
 
