@@ -433,7 +433,7 @@ const SCREEN_POP_APPS: SelectOption[] = [
 // leftmost tab AND its own default active tab. `AgentWorkspace2WithDeskPage.tsx`
 // passes its own, shorter list (just Messages/Threads) to the same hook
 // instead of this constant — see that file's own call site.
-const SEARCH_PANEL_TABS: SearchPanelTabKey[] = ["interactions", "customers", "messages", "threads"];
+const SEARCH_PANEL_TABS: SearchPanelTabKey[] = ["customers", "interactions", "messages", "threads"];
 
 // Builds a `tagOpenChannels` closure off of the given `interactions` — reads
 // each `Thread.type`/`.value` (skipping any channel the agent has
