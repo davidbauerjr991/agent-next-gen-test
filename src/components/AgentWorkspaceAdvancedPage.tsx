@@ -1053,7 +1053,16 @@ export function AgentWorkspaceAdvancedPage({
         const haystack = `${row.firstName} ${row.lastName} ${row.contactNumber} ${row.emailAddress}`.toLowerCase();
         if (!haystack.includes(q)) return false;
       }
-      for (const key of customerAddedFilterKeys) {
+      // Iterates `customerFilterValues`' own keys, not `customerAddedFilterKeys`
+      // — per explicit request, `CustomersListView` no longer has a
+      // "+ Filter" add-menu gating which fields are even eligible (every
+      // field always renders as a live `FilterChip` now), so
+      // `customerAddedFilterKeys` stays permanently empty and can no longer
+      // be what decides which selections actually apply here. Whatever the
+      // agent has picked a value for in `customerFilterValues` is what's
+      // active, exactly the same source of truth `InteractionsListView`'s
+      // own (always-local, never-lifted) filtering already uses.
+      for (const key of Object.keys(customerFilterValues)) {
         const selected = customerFilterValues[key];
         if (selected?.length && !selected.includes(row[key as CustomerFilterKey])) return false;
       }
