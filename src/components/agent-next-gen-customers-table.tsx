@@ -35,6 +35,7 @@ import { type ContactInteraction } from "@/components/agent-next-gen-interaction
 import { CURRENT_AGENT_NAME, nextInteractionSortDirection } from "@/components/agent-next-gen-shared-utils";
 import { CHANNEL_TYPE_ICON_COLOR_CLASS } from "@/components/agent-next-gen-contact-history";
 import { SubmitSearchInput } from "@/components/agent-next-gen-submit-search-input";
+import { FiltersDropdownChip } from "@/components/agent-next-gen-filters-dropdown";
 import { cn } from "@/lib/utils";
 import {
   Plus,
@@ -1082,24 +1083,26 @@ export function CustomersListView({
         )}
         <TableToolbar
           className="flex-1 min-w-0 py-0"
-          // Omitted (rather than passed `undefined` conditionally inline)
-          // whenever `viewsControl` is provided — see that prop's own doc
-          // comment above for why this is the real way to get a toolbar with
-          // no filter chips, not a value fed into one that's still rendered.
-          {...(viewsControl
-            ? {}
-            : {
-                filterDefs,
-                filterValues,
-                onFilterChange: handleFilterChange,
-                onFilterClear: clearAllFilters,
-              })}
-          // No "+ Filter" add-menu here any more — per explicit request, every
-          // field is always on (`filterDefs` above), with `TableToolbar`'s own
-          // overflow measurement collapsing whichever don't fit into its "+N"
-          // trigger. `filters` now renders only `viewsControl` when a caller
-          // provides one (see that prop's own doc comment), or nothing.
-          filters={viewsControl}
+          // No `filterDefs`/`filterValues`/`onFilterChange`/`onFilterClear`
+          // here — per explicit follow-up request ("make the filters a
+          // single chip that says 'filters'... display a dropdown of the
+          // filters as if they were in responsive collapsed mode"), the
+          // inline chip-row + "+N" overflow this would otherwise auto-render
+          // is replaced by `FiltersDropdownChip` below instead, passed
+          // through `filters` — `TableToolbar`'s own `hasFilters` is
+          // `filterChips || filters || showAdvancedSearch`, so a real node
+          // in `filters` alone keeps it correctly treating this toolbar as
+          // having filters, with no native chip-row left to conflict with
+          // it. `viewsControl`, when provided, still fully replaces this
+          // (see that prop's own doc comment) rather than showing both.
+          filters={viewsControl ?? (
+            <FiltersDropdownChip
+              filterDefs={filterDefs}
+              filterValues={filterValues}
+              onFilterChange={handleFilterChange}
+              onFilterClear={clearAllFilters}
+            />
+          )}
           actionDefs={[
             { key: "refresh", label: "Refresh", icon: <RefreshCw className="h-4 w-4" strokeWidth={1.5} /> },
             // Per explicit request, with a screenshot of the lucide "user-plus"
