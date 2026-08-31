@@ -104,12 +104,17 @@ export function FiltersDropdownChip({
         // opening flush-left of it there overflowed straight off the right
         // edge of the panel. Anchoring to the button's own right edge and
         // growing leftward instead keeps it inside a narrow container.
-        // `max-w-[calc(100vw-1rem)]` is a hard backstop against the
-        // viewport itself for pathologically narrow cases — real collision
-        // detection (flipping/shifting to whichever side actually has room)
-        // needs a positioning primitive like `Popover`'s own Radix
-        // `avoidCollisions`, not plain CSS.
-        <div className="absolute right-0 top-full mt-1 z-50 w-[260px] max-w-[calc(100vw-1rem)] rounded-lyra-md border border-lyra-border-subtle bg-lyra-bg-surface-overlay shadow-lg p-3 flex flex-col gap-2">
+        // `min-w-[260px]` (not a fixed `w-[260px]`, which clipped/overflowed
+        // a `FilterChip` whose own selected-values label renders wider than
+        // that, e.g. "Customer ID: CST-10000 +3") — same `min-w` (not fixed
+        // width) `collapsedFilterChip` itself uses, so this box always
+        // grows to actually fit its widest child instead of letting one
+        // poke out past its own edge. `max-w-[calc(100vw-1rem)]` is a hard
+        // backstop against the viewport itself for pathologically narrow
+        // cases — real collision detection (flipping/shifting to whichever
+        // side actually has room) needs a positioning primitive like
+        // `Popover`'s own Radix `avoidCollisions`, not plain CSS.
+        <div className="absolute right-0 top-full mt-1 z-50 min-w-[260px] max-w-[calc(100vw-1rem)] rounded-lyra-md border border-lyra-border-subtle bg-lyra-bg-surface-overlay shadow-lg p-3 flex flex-col gap-2">
           <SearchInput
             value={fieldSearch}
             onValueChange={setFieldSearch}
