@@ -6,20 +6,23 @@
 // Inbox Assignee/Owner Assignee/Tag/Create Date filter set, a sortable
 // table, and "N–M of T" pagination).
 //
-// Filters use the SAME "+ Filter" add-menu → `FilterChip` pattern the
-// Customers tab already established (`CustomersListView`, agent-next-gen-
-// customers-table.tsx — `addedFilterKeys`/`filterValues`/`TableToolbar`'s
-// own automatic `filterDefs` rendering), per explicit request, rather than
-// this table's own first pass (a single always-open "Filter Options" panel
-// with every field shown at once) — see `INTERACTION_HISTORY_FILTER_FIELD_
-// DEFS`/`InteractionsListView`'s own filter state below for exactly how
-// that's wired here. Create Date is the one field that doesn't fit that
-// generic string[]-values shape (a date RANGE, not a set of picked values)
-// — it's still toggled on/off from that same add-menu, but renders as its
-// own `DateRangeFilterChip` (lyra-ui's shared Today/Yesterday/Last 7 days/
+// Filters render inline next to Search via `TableToolbar`'s own automatic
+// `filterDefs` rendering — every field's `FilterChip` shows up front, with
+// `TableToolbar`'s own built-in overflow measurement collapsing whichever
+// don't fit into a trailing "+N" chip, matching the lyra-ui "Data
+// Management (Multiple Filters)" story exactly. Per explicit follow-up
+// request ("display all the filters in line with the search... don't
+// force them to add filters with the check boxes"), there is no "+ Filter"
+// add-menu here (unlike `CustomersListView`, agent-next-gen-customers-
+// table.tsx, which is out of scope for that request and keeps its own
+// add-menu as-is) — see `INTERACTION_HISTORY_FILTER_FIELD_DEFS`/
+// `InteractionsListView`'s own filter state below. Create Date doesn't fit
+// `filterDefs`' plain string[]-values shape (a date RANGE, not a set of
+// picked values), so it's always rendered directly as its own
+// `DateRangeFilterChip` (lyra-ui's shared Today/Yesterday/Last 7 days/
 // Custom date-range control — already used identically by the Contact
 // History card and the Performance/Productivity cards' own date filters)
-// instead of going through `filterDefs`.
+// alongside the `filterDefs`-driven chips, rather than through that prop.
 //
 // Reuses `INTERACTION_CHANNELS`/`RESOLUTION_TIMES`/`INTERACTION_OWNERS`
 // (agent-next-gen-interaction-dashboard.tsx — the same pools the per-customer
@@ -83,7 +86,6 @@ import {
   ArrowDown,
   ArrowUp,
   RefreshCw,
-  Plus,
   PhoneOutgoing,
   RotateCcw,
   UserCheck,
@@ -311,18 +313,12 @@ const INTERACTION_HISTORY_FILTER_VALUE_OPTIONS: Record<InteractionHistoryFilterK
   tags: INTERACTION_TAGS_POOL.map((v) => ({ value: v, label: v })),
 };
 
-// "Create Date" joins the same "+ Filter" add-menu as the 6 categorical
-// fields above, but a date RANGE doesn't fit `ToolbarFilterDef`'s plain
-// string[]-of-picked-values shape — so it's a separate constant (not folded
-// into `INTERACTION_HISTORY_FILTER_FIELD_DEFS`, which only ever holds
-// fields `filterDefs` can render automatically) and gets its own
-// `DateRangeFilterChip` rendered directly in `InteractionsListView`'s
-// `filters` slot once added, right alongside the `filterDefs`-driven chips.
-const CREATE_DATE_RANGE_KEY = "createDateRange";
-export const INTERACTION_HISTORY_ADDABLE_FILTER_OPTIONS: { value: string; label: string }[] = [
-  ...INTERACTION_HISTORY_FILTER_FIELD_DEFS.map((f) => ({ value: f.key, label: f.label })),
-  { value: CREATE_DATE_RANGE_KEY, label: "Create Date" },
-];
+// "Create Date" is always shown too (see this file's own top-of-file doc
+// comment), but a date RANGE doesn't fit `ToolbarFilterDef`'s plain
+// string[]-of-picked-values shape — so it gets its own `DateRangeFilterChip`
+// rendered directly in `InteractionsListView`'s `filters` slot, right
+// alongside the `filterDefs`-driven chips, rather than folding into
+// `INTERACTION_HISTORY_FILTER_FIELD_DEFS` above.
 
 /** Real start/end `Date` bounds for a `DateRangeFilterChip` selection —
  *  that component only tracks WHICH range is selected (`DateRangeFilterValue`
@@ -615,14 +611,6 @@ export function InteractionsListView({ onAddToast, onOpenInteraction }: Interact
   // back) starts fresh rather than keeping stale bulk edits around.
   const [records, setRecords] = useState<InteractionHistoryRecord[]>(INITIAL_INTERACTION_HISTORY_RECORDS);
   const [searchQuery, setSearchQuery] = useState("");
-  // Which fields the agent has added via the "+ Filter" menu — same
-  // "starts empty, nothing renders until explicitly added" shape
-  // `CustomersListView`'s own `addedFilterKeys` uses. Can hold
-  // `CREATE_DATE_RANGE_KEY` alongside the 6 categorical
-  // `InteractionHistoryFilterFieldDefs` keys — see that key's own doc
-  // comment for why it's still tracked here even though it doesn't go
-  // through `filterValues` below.
-  const [addedFilterKeys, setAddedFilterKeys] = useState<string[]>([]);
   const [filterValues, setFilterValues] = useState<Record<string, string[]>>({});
   const [createDateRangeValue, setCreateDateRangeValue] = useState<DateRangeFilterValue>("today");
   const [createDateRangeCustom, setCreateDateRangeCustom] = useState<DateRangePickerProps["value"]>(undefined);
@@ -635,27 +623,18 @@ export function InteractionsListView({ onAddToast, onOpenInteraction }: Interact
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(25);
 
-  const filterDefs = addedFilterKeys
-    .filter((key): key is InteractionHistoryFilterKey => key !== CREATE_DATE_RANGE_KEY)
-    .map((key) => {
-      const def = INTERACTION_HISTORY_FILTER_FIELD_DEFS.find((f) => f.key === key)!;
-      return { key: def.key, label: def.label, options: INTERACTION_HISTORY_FILTER_VALUE_OPTIONS[def.key] };
-    });
-  const createDateRangeAdded = addedFilterKeys.includes(CREATE_DATE_RANGE_KEY);
+  // Always every field — per explicit request, nothing is gated behind a
+  // "+ Filter" add-menu any more (see this file's own top-of-file doc
+  // comment); `TableToolbar` renders these as `FilterChip`s inline next to
+  // Search and collapses whichever don't fit into its own "+N" overflow
+  // automatically.
+  const filterDefs = INTERACTION_HISTORY_FILTER_FIELD_DEFS.map((def) => ({
+    key: def.key,
+    label: def.label,
+    options: INTERACTION_HISTORY_FILTER_VALUE_OPTIONS[def.key],
+  }));
   const handleFilterChange = (key: string, values: string[]) => setFilterValues((prev) => ({ ...prev, [key]: values }));
   const clearAllFilters = () => setFilterValues({});
-  // Removing a field from the "+ Filter" menu also drops its stored
-  // selected values — same reasoning `CustomersListView`'s own
-  // `handleAddedFiltersChange` gives: re-adding it later should start
-  // fresh, not resurrect a stale selection nobody could see in the
-  // meantime. `CREATE_DATE_RANGE_KEY` has no `filterValues` entry to prune
-  // (its own state lives separately below) — removing it just stops
-  // `createDateRangeAdded` from applying; its stored range/custom value is
-  // deliberately left alone so re-adding it comes back where it was.
-  const handleAddedFiltersChange = (keys: string[]) => {
-    setAddedFilterKeys(keys);
-    setFilterValues((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => keys.includes(k))));
-  };
 
   // Nothing to actually re-fetch (this tab's data is a fixed mock set) —
   // Refresh just snaps back to page 1, same as any "reload the current
@@ -683,15 +662,12 @@ export function InteractionsListView({ onAddToast, onOpenInteraction }: Interact
     columnOrder.reduce((sum, key) => sum + INTERACTION_HISTORY_COLUMN_CONFIG[key].minWidthPx, 0);
 
   const filtered = useMemo(() => {
-    // Only computed/applied while "Create Date" is actually one of the
-    // added filters — `dateRangeBounds` otherwise never runs and `from`/
-    // `to` both stay `undefined`, matching every other field's own "no
-    // entry in `filterValues` (or, here, not added at all) means no-op"
-    // behavior. Computed inside this `useMemo`, not as an outer `const`,
-    // purely so its dependency array can key on the three plain values
-    // that actually determine it rather than a freshly-allocated `{from,
-    // to}` object every render.
-    const dateBounds = createDateRangeAdded ? dateRangeBounds(createDateRangeValue, createDateRangeCustom) : {};
+    // Create Date is always shown/active now (see this file's own
+    // top-of-file doc comment) — computed inside this `useMemo`, not as an
+    // outer `const`, purely so its dependency array can key on the two
+    // plain values that actually determine it rather than a
+    // freshly-allocated `{from, to}` object every render.
+    const dateBounds = dateRangeBounds(createDateRangeValue, createDateRangeCustom);
     const query = searchQuery.trim().toLowerCase();
     return records.filter((r) => {
       if (query) {
@@ -710,7 +686,7 @@ export function InteractionsListView({ onAddToast, onOpenInteraction }: Interact
       if (dateBounds.to && r.createDateValue > dateBounds.to) return false;
       return true;
     });
-  }, [records, searchQuery, filterValues, createDateRangeAdded, createDateRangeValue, createDateRangeCustom]);
+  }, [records, searchQuery, filterValues, createDateRangeValue, createDateRangeCustom]);
 
   // Priority/Create Date are real numbers/dates; Resolution/First Response
   // Time sort by their shared `RESOLUTION_TIMES` pool's own index (already
@@ -854,46 +830,21 @@ export function InteractionsListView({ onAddToast, onOpenInteraction }: Interact
         filterValues={filterValues}
         onFilterChange={handleFilterChange}
         onFilterClear={clearAllFilters}
-        // The "+ Filter" add-menu itself, right after the `filterDefs`-
-        // driven chips it decides the contents of — same composition/order
-        // `CustomersListView`'s own `filters` slot uses (`Select multiple
-        // searchable showSelectAll`, a custom "+ Filter" trigger instead of
-        // its default text box). "Create Date" lives in this SAME menu (see
-        // `INTERACTION_HISTORY_ADDABLE_FILTER_OPTIONS`'s own doc comment)
-        // but renders as its own `DateRangeFilterChip` before the trigger,
-        // once added, rather than through `filterDefs` — that prop can only
-        // render plain multi-value `FilterChip`s, not a date range.
+        // Create Date is always shown too, right alongside the `filterDefs`-
+        // driven chips — it renders as its own `DateRangeFilterChip` rather
+        // than through `filterDefs`, since that prop can only render plain
+        // multi-value `FilterChip`s, not a date range. No add-menu here per
+        // explicit request — every filter (including this one) is always
+        // on, with `TableToolbar`'s own overflow measurement collapsing
+        // whichever `filterDefs` chips don't fit into its "+N" trigger.
         filters={
-          <>
-            {createDateRangeAdded && (
-              <DateRangeFilterChip
-                label="Create Date"
-                value={createDateRangeValue}
-                onValueChange={setCreateDateRangeValue}
-                customValue={createDateRangeCustom}
-                onCustomValueChange={setCreateDateRangeCustom}
-              />
-            )}
-            <Select
-              options={INTERACTION_HISTORY_ADDABLE_FILTER_OPTIONS}
-              multiple
-              searchable
-              showSelectAll
-              dropdownAlign="left"
-              values={addedFilterKeys}
-              onValuesChange={handleAddedFiltersChange}
-              trigger={
-                <button
-                  type="button"
-                  className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lyra-sm lyra-label transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lyra-border-focus focus-visible:ring-offset-2 border border-lyra-border-soft bg-lyra-bg-control text-lyra-fg-action hover:bg-lyra-state-hover active:bg-lyra-state-pressed h-8 px-3"
-                >
-                  <Plus className="h-4 w-4" strokeWidth={1.5} />
-                  Filter
-                </button>
-              }
-              className="inline-flex relative"
-            />
-          </>
+          <DateRangeFilterChip
+            label="Create Date"
+            value={createDateRangeValue}
+            onValueChange={setCreateDateRangeValue}
+            customValue={createDateRangeCustom}
+            onCustomValueChange={setCreateDateRangeCustom}
+          />
         }
         actionDefs={[
           { key: "refresh", label: "Refresh", icon: <RefreshCw className="h-4 w-4" strokeWidth={1.5} />, onClick: handleRefresh },
