@@ -2545,11 +2545,13 @@ export function AgentNextGenPage({
     // open/closed state at all — starting a second interaction with a
     // customer who already has one open leaves the panel exactly as the
     // agent last left it for THAT card, rather than re-applying anything
-    // here. A new one opens/stays closed per `lastSidePanelOpenChoice` —
-    // the agent's own last explicit choice (not hardcoded open) — per
-    // explicit follow-up request.
+    // here. A new one always starts CLOSED — per explicit request, launching
+    // an interaction no longer auto-opens Customer Information at all, even
+    // when `lastSidePanelOpenChoice` (the agent's own last explicit
+    // open/close toggle) was "open"; the agent can still open it manually
+    // via that same toggle once the interaction is up.
     if (isNewInteraction) {
-      setSidePanelOpen(lastSidePanelOpenChoice.current);
+      setSidePanelOpen(false);
       // Per explicit follow-up — see `handleStartCall`'s own doc comment
       // above for the full history/reasoning.
       setNavOpen(true);
@@ -2675,7 +2677,7 @@ export function AgentNextGenPage({
     });
     switchActiveInteraction(id);
     if (isNewInteraction) {
-      setSidePanelOpen(lastSidePanelOpenChoice.current);
+      setSidePanelOpen(false);
       // Per explicit follow-up — see `handleStartCall`'s own doc comment
       // above for the full history/reasoning.
       setNavOpen(true);
@@ -2754,7 +2756,7 @@ export function AgentNextGenPage({
     });
     switchActiveInteraction(id);
     if (isNewInteraction) {
-      setSidePanelOpen(lastSidePanelOpenChoice.current);
+      setSidePanelOpen(false);
       // Per explicit follow-up — see `handleStartCall`'s own doc comment
       // above for the full history/reasoning.
       setNavOpen(true);
@@ -2908,7 +2910,7 @@ export function AgentNextGenPage({
       if (storedRecord) {
         setInteractions((prev) => [...prev, storedRecord]);
         switchActiveInteraction(storedRecord.id);
-        setSidePanelOpen(lastSidePanelOpenChoice.current);
+        setSidePanelOpen(false);
         // Also a genuinely new interaction (this whole branch only runs
         // when `!existingInteraction`) — see `handleStartCall`'s own doc
         // comment above for the full history/reasoning.
@@ -3035,7 +3037,7 @@ export function AgentNextGenPage({
     });
     switchActiveInteraction(id);
     if (isNewInteraction) {
-      setSidePanelOpen(lastSidePanelOpenChoice.current);
+      setSidePanelOpen(false);
       // Per explicit follow-up — see `handleStartCall`'s own doc comment
       // above for the full history/reasoning.
       setNavOpen(true);
@@ -3825,7 +3827,7 @@ export function AgentNextGenPage({
     });
     switchActiveInteraction(id);
     if (isNewInteraction) {
-      setSidePanelOpen(lastSidePanelOpenChoice.current);
+      setSidePanelOpen(false);
       // Originally scoped to just this genuinely-INBOUND-arrival handler
       // (opening the left nav only, not the shared right panel) — see
       // `handleStartCall`'s own doc comment above for the later, broader
@@ -3922,7 +3924,7 @@ export function AgentNextGenPage({
     });
     switchActiveInteraction(id);
     if (isNewInteraction) {
-      setSidePanelOpen(lastSidePanelOpenChoice.current);
+      setSidePanelOpen(false);
       // Per explicit follow-up — see `handleStartCall`'s own doc comment
       // above for the full history/reasoning.
       setNavOpen(true);
