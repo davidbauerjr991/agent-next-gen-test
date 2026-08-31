@@ -85,6 +85,8 @@ import {
   Mail,
   Phone,
   MessageCircle,
+  MessageSquare,
+  Smartphone,
   ArrowDown,
   ArrowUp,
   RefreshCw,
@@ -116,7 +118,13 @@ export interface InteractionHistoryRecord {
   /** "" for an unassigned interaction — rendered as an empty cell, matching
    *  the reference screenshot's own blank Owner Assignee rows. */
   ownerAssignee: string;
-  type: "email" | "chat" | "voice";
+  /** "whatsapp"/"sms" added per explicit request ("add a channel type
+   *  filter to the contacts table and allow it to filter email, chat,
+   *  whatsapp, sms") — this file's OWN type, not the shared `ContactInteraction`
+   *  (agent-next-gen-customers-table.tsx) this doc comment's own top section
+   *  already avoids widening for the same reason, so adding values here
+   *  risks nothing outside this table. */
+  type: "email" | "chat" | "voice" | "whatsapp" | "sms";
   direction: "inbound" | "outbound";
   /** Real `Date` (not just a display string) — what Create Date sorting and
    *  the "Create Date" `DateRangeFilterChip` (see this file's own filter
@@ -194,6 +202,22 @@ function formatInteractionDate(d: Date): string {
   return `${mm}/${dd}/${yy} ${hour12}:${minute} ${hour24 >= 12 ? "PM" : "AM"}`;
 }
 
+// Local channel-type cycle for the new "Channel Type" filter (email/chat/
+// whatsapp/sms, per explicit request "add a channel type filter to the
+// contacts table and allow it to filter email, chat, whatsapp, sms").
+// Deliberately layered independently of `INTERACTION_CHANNELS`' own `type`
+// (agent-next-gen-interaction-dashboard.tsx — shared with the per-customer
+// accordion's `buildInteractions`) rather than widening that shared pool's
+// values, same "this table gets its own thing instead of risking that
+// other, narrower consumer" reasoning this file's own top doc comment
+// already gives for `InteractionHistoryRecord` existing at all. Keeps
+// "voice" in the cycle too (an existing, still-real value — Redial/the
+// Type column icon both still handle it) even though it isn't one of the
+// four values the new filter's own options list offers; a voice row is
+// simply never matched by that filter, which is correct — it isn't email,
+// chat, whatsapp, or sms.
+const CHANNEL_TYPE_CYCLE: InteractionHistoryRecord["type"][] = ["email", "chat", "whatsapp", "sms", "voice"];
+
 /** Deterministic (no `Math.random`, same reasoning every other mock-data
  *  builder in this app follows) — cycles through `CREATE_NEW_CUSTOMERS`
  *  (60 records) and `INTERACTION_CHANNELS` (7) more than once as `count`
@@ -215,7 +239,7 @@ function buildInteractionHistory(count: number): InteractionHistoryRecord[] {
       id: `ih-${i}`,
       priority: i % 4,
       ownerAssignee: i % 5 === 0 ? "" : INTERACTION_OWNERS[(i * 3) % INTERACTION_OWNERS.length],
-      type: source.type,
+      type: CHANNEL_TYPE_CYCLE[i % CHANNEL_TYPE_CYCLE.length],
       direction: i % 2 === 0 ? "inbound" : "outbound",
       createDateValue,
       createDate: formatInteractionDate(createDateValue),
@@ -286,14 +310,22 @@ export const INTERACTION_HISTORY_FIXED_COLUMNS_WIDTH = 40 /* checkbox */ + 48 /*
 
 /* ── Filters ── */
 
-type InteractionHistoryFilterKey = "channel" | "status" | "skill" | "inboxAssignee" | "ownerAssignee" | "tags";
+type InteractionHistoryFilterKey = "type" | "channel" | "status" | "skill" | "inboxAssignee" | "ownerAssignee" | "tags";
 
 // Rendered as real `FilterChip`s via `TableToolbar`'s own `filterDefs` prop
 // (table.tsx — "Declarative filter definitions — renders FilterChip
 // components automatically") once added, same as `CUSTOMER_FILTER_FIELD_
 // DEFS` (agent-next-gen-customers-table.tsx) already does for the Customers
 // tab.
+//
+// "Channel Type" (`type`) — per explicit request ("add a channel type
+// filter to the contacts table and allow it to filter email, chat,
+// whatsapp, sms") — labeled distinctly from the existing "Channel" filter
+// above, which filters the unrelated per-queue `channel` field (e.g.
+// "SMS_General", "Rebooking_Chat") rather than the actual communication
+// medium this new filter targets.
 export const INTERACTION_HISTORY_FILTER_FIELD_DEFS: { key: InteractionHistoryFilterKey; label: string }[] = [
+  { key: "type", label: "Channel Type" },
   { key: "channel", label: "Channel" },
   { key: "status", label: "Status" },
   { key: "skill", label: "Skill" },
@@ -305,8 +337,19 @@ export const INTERACTION_HISTORY_FILTER_FIELD_DEFS: { key: InteractionHistoryFil
 // Distinct values actually present in `INTERACTION_HISTORY_RECORDS` for each
 // filterable field — same "precompute once at module load" reasoning
 // `CUSTOMER_FILTER_VALUE_OPTIONS` already uses (the dataset never changes
-// at runtime).
+// at runtime). `type` is the one exception: a fixed four-value list (not
+// derived from what's present, the way `channel`/`skill` are) — same
+// "known, closed vocabulary" reasoning `status` below already follows for
+// its own fixed `INTERACTION_STATUSES` list — since the request calls out
+// exactly these four values regardless of the mock dataset's own mix.
+const CHANNEL_TYPE_FILTER_OPTIONS: { value: InteractionHistoryRecord["type"]; label: string }[] = [
+  { value: "email", label: "Email" },
+  { value: "chat", label: "Chat" },
+  { value: "whatsapp", label: "WhatsApp" },
+  { value: "sms", label: "SMS" },
+];
 const INTERACTION_HISTORY_FILTER_VALUE_OPTIONS: Record<InteractionHistoryFilterKey, { value: string; label: string }[]> = {
+  type: CHANNEL_TYPE_FILTER_OPTIONS,
   channel: Array.from(new Set(INITIAL_INTERACTION_HISTORY_RECORDS.map((r) => r.channel))).map((v) => ({ value: v, label: v })),
   status: INTERACTION_STATUSES.map((v) => ({ value: v, label: v })),
   skill: Array.from(new Set(INITIAL_INTERACTION_HISTORY_RECORDS.map((r) => r.skill))).map((v) => ({ value: v, label: v })),
@@ -578,6 +621,8 @@ const CHANNEL_TYPE_ICON: Record<InteractionHistoryRecord["type"], typeof Mail> =
   email: Mail,
   voice: Phone,
   chat: MessageCircle,
+  whatsapp: MessageSquare,
+  sms: Smartphone,
 };
 
 export interface InteractionsListViewProps {
