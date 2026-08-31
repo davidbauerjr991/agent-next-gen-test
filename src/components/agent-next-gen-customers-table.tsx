@@ -804,12 +804,10 @@ export const CUSTOMER_ALL_COLUMN_DEFS: { key: string; label: string }[] = Object
 );
 export const CUSTOMER_ALL_COLUMN_KEYS = Object.keys(CUSTOMER_COLUMN_CONFIG) as CustomerColKey[];
 
-// Every field the "+ Filter" add-filter menu can offer — real, filterable
-// fields on `CUSTOMER_LIST_RECORDS` (not decoration), in the same order as
-// the reference "Add Filter" list this was built from. Picking one from the
-// menu is what actually adds it as a live `FilterChip` in the toolbar (see
-// `addedFilterKeys` in `CustomersListView`) — this array only lists what's
-// *available* to add, not what's currently active.
+// Every filterable field on `CUSTOMER_LIST_RECORDS` — all always render as
+// live `FilterChip`s in the toolbar (`CustomersListView`'s own `filterDefs`),
+// per explicit request; there's no add-menu picking a subset any more (see
+// `addedFilterKeys`'s own doc comment in `CustomersListView`).
 export const CUSTOMER_FILTER_FIELD_DEFS: { key: CustomerFilterKey; label: string }[] = [
   { key: "contactNumber", label: "Customer ID" },
   { key: "originalCustomerId", label: "Original customer ID" },
@@ -839,8 +837,6 @@ export const CUSTOMER_FILTER_VALUE_OPTIONS: Record<CustomerFilterKey, FilterChip
 
 export function CustomersListView({
   onStartInteraction,
-  addedFilterKeys,
-  onAddedFilterKeysChange,
   filterValues,
   onFilterValuesChange,
   onRowClick,
@@ -853,16 +849,28 @@ export function CustomersListView({
   openRowId,
   leadingChannelStack = false,
   isRowOpen,
+  viewsControl,
 }: {
   onStartInteraction: (contact: CreateNewOutboundContact, channel: ChannelType, phone: string, skillId: string) => void;
+  // `addedFilterKeys`/`onAddedFilterKeysChange` used to gate which fields
+  // rendered as `filterDefs` (a "+ Filter" add-menu the agent had to use
+  // before a field showed up at all). Per explicit follow-up request
+  // ("display all the filters in line with the search... don't force them
+  // to add filters with the check boxes" — same fix already applied to
+  // `InteractionsListView`/Contacts), `filterDefs` below now always
+  // includes every field and there's no add-menu any more, so this
+  // component no longer reads either prop — kept in the type/lifted in
+  // each page's own state only so every existing call site here keeps
+  // compiling unchanged; safe to drop from both once nothing else needs
+  // that lifted state either.
+  addedFilterKeys: string[];
+  onAddedFilterKeysChange: (keys: string[]) => void;
   // Filter state is a controlled prop, not local `useState`, so it lives on
   // (and survives) `AgentNextGenPage` itself instead of resetting every
   // time this component unmounts — which happens on every navigation away
   // from the Desk dashboard (an active interaction, Settings), not just
   // when switching between desk tabs. See the state's own declaration
   // comment in `AgentNextGenPage` for the full explanation.
-  addedFilterKeys: string[];
-  onAddedFilterKeysChange: (keys: string[]) => void;
   filterValues: Record<string, string[]>;
   onFilterValuesChange: (values: Record<string, string[]>) => void;
   /** Opens `CustomerRowInfoPanel` for the clicked row — lifted up to
@@ -933,6 +941,29 @@ export function CustomersListView({
    * that call site).
    */
   isRowOpen?: (row: CustomerListRecord) => boolean;
+  /**
+   * Per explicit request ("substitute a dropdown in place of the search —
+   * can you do that without modifying the component?", later widened to
+   * "move the filters above the line ... before the search is
+   * implemented"): when provided, this table's filter UI moves out of the
+   * toolbar entirely — no search box, no `filterDefs` chips, no
+   * "+ Filter" add-menu — leaving just this node (rendered where the
+   * search field used to be) plus the unrelated `actionDefs`/`actions`
+   * (Refresh, New Customer, `ColumnToggle`). Real, documented mechanism,
+   * not a CSS hack: every one of `TableToolbar`'s own `searchQuery`/
+   * `onSearchChange`/`filterDefs`/`filterValues`/`onFilterChange`/
+   * `onFilterClear` props is independently optional — omitting all of
+   * them is the real way to get a toolbar with none of that, not a value
+   * fed into pieces that still render. The caller is then expected to
+   * render its own filter chips elsewhere using the `filterValues`/
+   * `onFilterValuesChange` props above directly (already fully lifted/
+   * controlled for every consumer, unlike `InteractionsListView`'s own
+   * equivalent). Omit entirely (default) for the toolbar's normal, fully
+   * self-contained real search+filter row, unchanged — only Agent
+   * Workspace Advanced's own Search panel (agent-next-gen-search-
+   * advanced.tsx) passes this today.
+   */
+  viewsControl?: React.ReactNode;
 }) {
   // `"channels"` is dropped from the column system entirely in
   // `leadingChannelStack` mode — it's no longer a normal column at all
@@ -946,24 +977,18 @@ export function CustomersListView({
     : CUSTOMER_ALL_COLUMN_DEFS;
   const [visibleCols, setVisibleCols] = useState<Set<string>>(new Set(columnKeys));
 
-  // Which fields the agent has actually added via the "+ Filter" menu below
-  // — only these get rendered as live `FilterChip`s / applied to `filtered`.
-  // Starts empty (in the lifted state's own initializer): no filter is
-  // active until the agent explicitly adds one, matching the reference
-  // "Add Filter" menu this was built from.
-  const filterDefs = addedFilterKeys.map((key) => {
-    const def = CUSTOMER_FILTER_FIELD_DEFS.find((f) => f.key === key)!;
-    return { key: def.key, label: def.label, options: CUSTOMER_FILTER_VALUE_OPTIONS[def.key] };
-  });
+  // Always every field — per explicit request, nothing is gated behind a
+  // "+ Filter" add-menu any more (see `addedFilterKeys`'s own doc comment
+  // above); `TableToolbar` renders these as `FilterChip`s inline next to
+  // Search and collapses whichever don't fit into its own "+N" overflow
+  // automatically.
+  const filterDefs = CUSTOMER_FILTER_FIELD_DEFS.map((def) => ({
+    key: def.key,
+    label: def.label,
+    options: CUSTOMER_FILTER_VALUE_OPTIONS[def.key],
+  }));
   const handleFilterChange = (key: string, values: string[]) => onFilterValuesChange({ ...filterValues, [key]: values });
   const clearAllFilters = () => onFilterValuesChange({});
-  // Adding/removing a field from the "+ Filter" menu — removing one also
-  // drops its stored selected values, so re-adding it later starts fresh
-  // instead of resurrecting a stale selection nobody can see in the meantime.
-  const handleAddedFiltersChange = (keys: string[]) => {
-    onAddedFilterKeysChange(keys);
-    onFilterValuesChange(Object.fromEntries(Object.entries(filterValues).filter(([k]) => keys.includes(k))));
-  };
 
   const { columnOrder: allColumnOrder, dragOverKey, dragHandlers } = useColumnReorder<CustomerColKey>(
     columnKeys
@@ -1020,46 +1045,27 @@ export function CustomersListView({
     <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
       <TableToolbar
         className="px-6"
-        searchQuery={searchQuery}
-        onSearchChange={onSearchChange}
-        filterDefs={filterDefs}
-        filterValues={filterValues}
-        onFilterChange={handleFilterChange}
-        onFilterClear={clearAllFilters}
-        // The "+ Filter" add-menu itself — `TableToolbar`'s own `filters`
-        // slot renders right alongside the `filterDefs`-driven chips above
-        // (table.tsx: filterChips, then filters, then the Clear button),
-        // exactly where FilterChip.stories.tsx's own "Removable" demo
-        // places this same trigger. Composed from `Select`
-        // (multiple/searchable/showSelectAll, a custom "+ Filter" trigger
-        // instead of its default text box) rather than lyra-ui's
-        // `FilterChip` itself — `FilterChip` renders ONE already-added
-        // filter's value picker; this is the separate "pick which fields
-        // are active at all" control that decides what shows up in
-        // `filterDefs` in the first place, same distinction
-        // FilterChip.stories.tsx's own demo draws between its per-filter
-        // chips and this single add-menu.
-        filters={
-          <Select
-            options={CUSTOMER_FILTER_FIELD_DEFS.map((f) => ({ value: f.key, label: f.label }))}
-            multiple
-            searchable
-            showSelectAll
-            dropdownAlign="left"
-            values={addedFilterKeys}
-            onValuesChange={handleAddedFiltersChange}
-            trigger={
-              <button
-                type="button"
-                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lyra-sm lyra-label transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lyra-border-focus focus-visible:ring-offset-2 border border-lyra-border-soft bg-lyra-bg-control text-lyra-fg-action hover:bg-lyra-state-hover active:bg-lyra-state-pressed h-8 px-3"
-              >
-                <Plus className="h-4 w-4" strokeWidth={1.5} />
-                Filter
-              </button>
-            }
-            className="inline-flex relative"
-          />
-        }
+        // Both omitted (rather than passed `undefined` conditionally
+        // inline) whenever `viewsControl` is provided — see that prop's
+        // own doc comment above for why this is the real way to get a
+        // toolbar with no search box, not a value fed into one that's
+        // still rendered.
+        {...(viewsControl
+          ? {}
+          : {
+              searchQuery,
+              onSearchChange,
+              filterDefs,
+              filterValues,
+              onFilterChange: handleFilterChange,
+              onFilterClear: clearAllFilters,
+            })}
+        // No "+ Filter" add-menu here any more — per explicit request, every
+        // field is always on (`filterDefs` above), with `TableToolbar`'s own
+        // overflow measurement collapsing whichever don't fit into its "+N"
+        // trigger. `filters` now renders only `viewsControl` when a caller
+        // provides one (see that prop's own doc comment), or nothing.
+        filters={viewsControl}
         actionDefs={[
           { key: "refresh", label: "Refresh", icon: <RefreshCw className="h-4 w-4" strokeWidth={1.5} /> },
           // Per explicit request, with a screenshot of the lucide "user-plus"
