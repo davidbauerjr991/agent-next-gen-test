@@ -44,11 +44,12 @@
 // request "the overflow should be the chevron scroll like other menus")
 // — same reasoning as before, just now living inside `Popover`'s
 // `content` slot instead of a hand-rolled wrapper div. `content`'s own
-// `h-full` stretches it to fill whatever real available height `Popover`
-// computed for its body region, so the chevron-scrolling inner list — not
-// `Popover`'s own body scroll region — is what actually scrolls in
-// practice (mirrors `select.tsx`'s own `content` nesting a second,
-// self-contained scroll region the same way).
+// wrapper is a real `flex-1 min-h-0` flex item of Popover's own body
+// region (see that div's own doc comment below for why, and for the
+// upstream lyra-ui fix this adopts), so the chevron-scrolling inner list
+// — not Popover's own body scroll region — is what actually scrolls in
+// practice, exactly like `select.tsx`'s/`tag-picker.tsx`'s own `content`
+// nesting a second, self-contained scroll region the same way.
 //
 // `CustomersListView` passes NO `filterDefs`/`filterValues`/`onFilterChange`/
 // `onFilterClear` to `TableToolbar` at all when using this (so its own
@@ -151,25 +152,26 @@ export function FiltersDropdownChip({
         ) : undefined
       }
       content={
-        // `maxHeight: var(--radix-popover-content-available-height)` —
-        // the same real CSS custom property Radix Popper sets on the
-        // Content element itself (see popover.tsx's own comment on this
-        // exact variable) — read directly here instead of relying on this
-        // div's height:100% resolving through Popover's own body wrapper
-        // (a `flex: 1 1 auto` item one level up). Custom properties
-        // inherit to every descendant regardless of layout mode, so this
-        // is a hard, direct cap independent of any ambiguity in that
-        // intermediate flex-percentage chain — without it, if this div's
-        // own height silently fell back to its natural (unclamped)
-        // content size, it would grow past `Popover`'s own body region
-        // and its plain, un-hidden `overflow-auto` scrollbar (not this
-        // component's own hidden-scrollbar/chevron list) would end up
-        // being what actually scrolls — exactly the "using the scrollbar
-        // instead of the chevron scroll" bug this fixes.
-        <div
-          className="flex flex-col min-h-0 overflow-hidden px-3 py-1"
-          style={{ maxHeight: "var(--radix-popover-content-available-height)" }}
-        >
+        // `flex-1 min-h-0` — the real, bulletproof fix (adopted from
+        // lyra-ui's own `Popover`/`select.tsx`/`tag-picker.tsx`, updated to
+        // make Popover's body wrapper an actual flex CONTAINER — not just a
+        // flex item — whenever `header`/`footer` is present, specifically
+        // so a `content` slot managing its own internal scroll region can
+        // shrink itself via ordinary `flex-1 min-h-0`, exactly like this).
+        // My earlier attempt (reading `var(--radix-popover-content-
+        // available-height)` directly here) worked around the SAME real
+        // bug lyra-ui itself just fixed at its source — Popover's body
+        // wrapper wasn't a real flex container, so a child's height only
+        // had CSS-var-reading or percentage-height guessing to go on, both
+        // fragile. With the real fix in place, plain flexbox sizing is all
+        // this needs, same as `Select`'s multi-select listbox and
+        // `TagPicker` (select.tsx, tag-picker.tsx) — no self-imposed
+        // `max-h-[Npx]` cap the way those two add on top of `flex-1
+        // min-h-0`, since our field list is a small, fixed set of known
+        // filters (never open-ended the way an arbitrary option list can
+        // be) and the whole point here was to only scroll once actually
+        // out of real screen space, not before.
+        <div className="flex flex-1 min-h-0 flex-col overflow-hidden px-3 py-1">
           {canScrollUp && <ScrollChevronButton direction="up" onStep={() => scrollListBy(-6)} />}
           <div
             ref={listRef}

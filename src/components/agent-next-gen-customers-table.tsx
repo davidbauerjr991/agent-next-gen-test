@@ -1078,7 +1078,18 @@ export function CustomersListView({
             onValueChange={setSearchDraft}
             onSubmit={onSearchChange}
             placeholder="Search"
-            className="shrink-0 max-w-[320px]"
+            // `flex-1 min-w-[240px] max-w-[320px]` — the exact sizing class
+            // `TableToolbar`'s own real `SearchInput` uses in both its
+            // layouts (table.tsx), not the rigid `shrink-0` this used to
+            // have. Per explicit request ("the row for search, filters and
+            // controls should be responsive... same responsiveness as
+            // depicted in lyra-ui"): `shrink-0` refused to give up any of
+            // its own space as the row narrowed, so `TableToolbar`'s own
+            // sibling portion (filters/actions) got squeezed disproportion-
+            // ately thin instead of sharing the shrinkage the way lyra-ui's
+            // own search box does (shrinking down to a 240px floor before
+            // anything else is asked to give up space).
+            className="flex-1 min-w-[240px] max-w-[320px]"
           />
         )}
         <TableToolbar

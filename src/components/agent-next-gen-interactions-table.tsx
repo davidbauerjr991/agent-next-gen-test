@@ -846,7 +846,11 @@ export function InteractionsListView({ onAddToast, onOpenInteraction }: Interact
           onValueChange={setSearchDraft}
           onSubmit={setSearchQuery}
           placeholder="Search"
-          className="shrink-0 max-w-[320px]"
+          // `flex-1 min-w-[240px] max-w-[320px]` — same sizing class
+          // `TableToolbar`'s own real `SearchInput` uses (table.tsx), not
+          // the rigid `shrink-0` this used to have — see the identical
+          // fix/reasoning in agent-next-gen-customers-table.tsx.
+          className="flex-1 min-w-[240px] max-w-[320px]"
         />
         <TableToolbar
           // `gap-0` (overrides `TableToolbar`'s own base `gap-2`) — with no
