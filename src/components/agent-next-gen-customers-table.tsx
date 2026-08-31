@@ -36,6 +36,7 @@ import { CURRENT_AGENT_NAME, nextInteractionSortDirection } from "@/components/a
 import { CHANNEL_TYPE_ICON_COLOR_CLASS } from "@/components/agent-next-gen-contact-history";
 import { SubmitSearchInput } from "@/components/agent-next-gen-submit-search-input";
 import { FiltersDropdownChip } from "@/components/agent-next-gen-filters-dropdown";
+import { useToolbarRowNarrow } from "@/components/agent-next-gen-use-toolbar-row-narrow";
 import { cn } from "@/lib/utils";
 import {
   Plus,
@@ -1050,6 +1051,13 @@ export function CustomersListView({
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [rowsPerPage, totalPages, currentPage]);
 
+  // Per explicit request ("the row for search, filters and controls should
+  // be responsive... same responsiveness as depicted in lyra-ui") — see
+  // agent-next-gen-use-toolbar-row-narrow.ts's own top doc comment for the
+  // full reasoning behind measuring this row itself rather than relying on
+  // `TableToolbar`'s own internal `isNarrow`.
+  const { ref: toolbarRowRef, isNarrow: toolbarRowNarrow } = useToolbarRowNarrow();
+
   return (
     // `min-w-0 overflow-hidden` — this is a flex ITEM inside the Desk
     // body's row container (`<div className="relative flex flex-1
@@ -1060,36 +1068,48 @@ export function CustomersListView({
     <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
       {/* `SubmitSearchInput` and `TableToolbar` as flex SIBLINGS in one row
           (not `TableToolbar`'s own built-in search box — see
-          `SubmitSearchInput`'s own top-of-file doc comment for why), rather
-          than two stacked rows — `TableToolbar` renders its own
-          filters+actions as one already-flush row when no search props are
-          passed (`hasSearch` false), so putting our own search box beside
-          it here, both sharing this wrapper's own `px-6 py-3`/`gap-2`
-          (removed from `TableToolbar`'s own className below so it doesn't
-          double up), reconstructs the original single-row search+filters+
-          actions layout almost exactly, still without touching
-          `TableToolbar` itself. `SubmitSearchInput` itself is omitted
-          entirely whenever `viewsControl` is provided, same as the search
-          box it replaces — see that prop's own doc comment. */}
-      <div className="flex items-center gap-2 px-6 py-3">
+          `SubmitSearchInput`'s own top-of-file doc comment for why) —
+          `TableToolbar` renders its own filters+actions as one already-
+          flush row when no search props are passed (`hasSearch` false), so
+          putting our own search box beside it here, both sharing this
+          wrapper's own `px-6 py-3`/`gap-2` (removed from `TableToolbar`'s
+          own className below so it doesn't double up), reconstructs the
+          original single-row search+filters+actions layout almost exactly,
+          still without touching `TableToolbar` itself.
+          `toolbarRowNarrow` (agent-next-gen-use-toolbar-row-narrow.ts) —
+          per explicit request ("the row for search, filters and controls
+          should be responsive... same responsiveness as depicted in
+          lyra-ui") — switches this row to a full-width stack (search alone
+          on top, `TableToolbar` alone below it) once genuinely narrow,
+          mirroring `TableToolbar`'s own real "no title" narrow layout
+          (table.tsx): search occupies its own full row there too, with
+          filters+actions wrapping to a shared row beneath it — a shape
+          that can't happen while search and `TableToolbar` are jammed
+          side by side as fixed-width flex siblings, regardless of how
+          either one's own width is constrained.
+          `SubmitSearchInput` itself is omitted entirely whenever
+          `viewsControl` is provided, same as the search box it
+          replaces — see that prop's own doc comment. */}
+      <div
+        ref={toolbarRowRef}
+        className={cn("flex gap-2 px-6 py-3", toolbarRowNarrow ? "flex-col items-stretch" : "items-center")}
+      >
         {!viewsControl && (
           <SubmitSearchInput
             value={searchDraft}
             onValueChange={setSearchDraft}
             onSubmit={onSearchChange}
             placeholder="Search"
-            // `flex-1 min-w-[240px] max-w-[320px]` — the exact sizing class
-            // `TableToolbar`'s own real `SearchInput` uses in both its
-            // layouts (table.tsx), not the rigid `shrink-0` this used to
-            // have. Per explicit request ("the row for search, filters and
-            // controls should be responsive... same responsiveness as
-            // depicted in lyra-ui"): `shrink-0` refused to give up any of
-            // its own space as the row narrowed, so `TableToolbar`'s own
-            // sibling portion (filters/actions) got squeezed disproportion-
-            // ately thin instead of sharing the shrinkage the way lyra-ui's
-            // own search box does (shrinking down to a 240px floor before
-            // anything else is asked to give up space).
-            className="flex-1 min-w-[240px] max-w-[320px]"
+            // `flex-1 min-w-[240px] max-w-[320px]` when side by side — the
+            // exact sizing class `TableToolbar`'s own real `SearchInput`
+            // uses in both its layouts (table.tsx), not the rigid
+            // `shrink-0` this used to have (it refused to give up any of
+            // its own space as the row narrowed, squeezing `TableToolbar`'s
+            // sibling portion disproportionately thin instead of sharing
+            // the shrinkage). `w-full` once `toolbarRowNarrow` — the row is
+            // now a column stack, so search should span it the same way
+            // `TableToolbar`'s own narrow-layout search row does.
+            className={toolbarRowNarrow ? "w-full" : "flex-1 min-w-[240px] max-w-[320px]"}
           />
         )}
         <TableToolbar
@@ -1103,11 +1123,18 @@ export function CustomersListView({
           // applies between it and row 2 (the actual `isNarrow` filters+
           // actions row), pushing that visible row 8px lower than our
           // search box sitting right beside it. Safe to zero out `gap-2`
-          // entirely here: for this component's actual configuration
-          // (search always external), at most one of `TableToolbar`'s two
-          // rows ever has real content at a time, so the gap between them
-          // never needs to do anything.
-          className="flex-1 min-w-0 py-0 gap-0"
+          // unconditionally here (kept even once `toolbarRowNarrow`, below
+          // — `TableToolbar`'s OWN internal `isNarrow` is measured off its
+          // own width, which can independently land on either side of ITS
+          // 768px threshold even while stacked full-width under our own,
+          // larger threshold — see agent-next-gen-use-toolbar-row-narrow.ts):
+          // for this component's actual configuration (search always
+          // external), at most one of `TableToolbar`'s two internal rows
+          // ever has real content at a time regardless of which of the two
+          // thresholds is in play, so the gap between them never needs to
+          // do anything. `w-full` once `toolbarRowNarrow` — see the row
+          // wrapper's own doc comment above.
+          className={cn("py-0 gap-0", toolbarRowNarrow ? "w-full" : "flex-1 min-w-0")}
           // No `filterDefs`/`filterValues`/`onFilterChange`/`onFilterClear`
           // here — per explicit follow-up request ("make the filters a
           // single chip that says 'filters'... display a dropdown of the

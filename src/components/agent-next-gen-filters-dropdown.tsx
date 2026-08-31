@@ -86,7 +86,21 @@ export function FiltersDropdownChip({
   // agent-next-gen-scroll-chevron.tsx's own top doc comment for why this
   // is a local reimplementation rather than an import from lyra-ui itself.
   const listRef = useRef<HTMLDivElement>(null);
-  const { canScrollUp, canScrollDown, onScroll: onListScroll } = useScrollChevrons(listRef, [open, fieldSearch]);
+  // `filterValues` is in these deps too (not just `open`/`fieldSearch`) —
+  // per explicit bug report ("the bottom chevron is not displaying"):
+  // picking a value inside one of the `FilterChip`s below can change that
+  // chip's own rendered width/label (e.g. "Group" → "Group: Enterprise"),
+  // which can change the whole list's scrollable content height. Without
+  // `filterValues` here, `canScrollUp`/`canScrollDown` only ever recomputed
+  // on open/search-text changes (or on an actual scroll event, via
+  // `onListScroll` below) — so right after picking a value, the chevrons
+  // could sit stale until the next incidental scroll, at exactly the
+  // moment there was newly more (or less) content to reflect.
+  const { canScrollUp, canScrollDown, onScroll: onListScroll } = useScrollChevrons(listRef, [
+    open,
+    fieldSearch,
+    filterValues,
+  ]);
   const scrollListBy = (delta: number) => {
     listRef.current?.scrollBy({ top: delta });
   };
@@ -96,6 +110,33 @@ export function FiltersDropdownChip({
   const handleOpenChange = (next: boolean) => {
     setOpen(next);
     if (!next) setFieldSearch("");
+  };
+
+  // Per explicit bug report ("I am able to open multiple filter menus at
+  // once - this is confusing - if one is open the other should close"):
+  // each `FilterChip` below manages its OWN open/closed state fully
+  // internally (filter-chip.tsx's own `useState`) with no `open`/
+  // `onOpenChange` prop exposed to control or even observe it — there's no
+  // real, public way to tell one chip "close yourself" directly. This
+  // tracks which chip was most recently interacted with (a capture-phase
+  // `onPointerDownCapture` on each chip's own wrapper below — fires before
+  // the chip's own click handler, so it catches "the user is about to open
+  // this one" without needing any cooperation from `FilterChip` itself),
+  // and forces every OTHER chip to remount (via a changed `key`, ordinary
+  // React — not a fork of `FilterChip`) whenever the active one changes,
+  // which resets their own internal `open` state back to its default
+  // `false`. `closeGeneration` — not `activeFilterKey` itself — is what
+  // goes into the non-active chips' keys, and the active chip's OWN key
+  // never varies with either: remounting the chip the user is actively
+  // opening (between its own pointerdown and the click that opens it)
+  // would destroy and recreate its underlying button mid-interaction,
+  // orphaning that pending click before it ever fires.
+  const [activeFilterKey, setActiveFilterKey] = useState<string | null>(null);
+  const [closeGeneration, setCloseGeneration] = useState(0);
+  const handleFilterChipActivate = (key: string) => {
+    if (key === activeFilterKey) return;
+    setActiveFilterKey(key);
+    setCloseGeneration((g) => g + 1);
   };
 
   const activeFilterCount = Object.values(filterValues).filter((v) => v.length > 0).length;
@@ -183,13 +224,15 @@ export function FiltersDropdownChip({
               <p className="lyra-body-sm text-lyra-fg-disabled text-center py-2">No matching filters</p>
             ) : (
               visibleDefs.map((f) => (
-                <FilterChip
-                  key={f.key}
-                  label={f.label}
-                  options={f.options}
-                  selectedValues={filterValues[f.key] ?? []}
-                  onSelectionChange={(vals) => onFilterChange(f.key, vals)}
-                />
+                <div key={f.key} onPointerDownCapture={() => handleFilterChipActivate(f.key)}>
+                  <FilterChip
+                    key={f.key === activeFilterKey ? f.key : `${f.key}-closed-${closeGeneration}`}
+                    label={f.label}
+                    options={f.options}
+                    selectedValues={filterValues[f.key] ?? []}
+                    onSelectionChange={(vals) => onFilterChange(f.key, vals)}
+                  />
+                </div>
               ))
             )}
           </div>

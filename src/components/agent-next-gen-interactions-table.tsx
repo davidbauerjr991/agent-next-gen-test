@@ -71,6 +71,7 @@ import {
 import { CREATE_NEW_CUSTOMERS } from "@nicecxone/lyra-ui/customers-data";
 import { CREATE_NEW_AGENTS } from "@nicecxone/lyra-ui/agents-data";
 import { SubmitSearchInput } from "@/components/agent-next-gen-submit-search-input";
+import { useToolbarRowNarrow } from "@/components/agent-next-gen-use-toolbar-row-narrow";
 import {
   INTERACTION_CHANNELS,
   RESOLUTION_TIMES,
@@ -827,30 +828,43 @@ export function InteractionsListView({ onAddToast, onOpenInteraction }: Interact
     return value === "" ? "" : String(value);
   };
 
+  // Per explicit request ("the row for search, filters and controls should
+  // be responsive... same responsiveness as depicted in lyra-ui") — see
+  // agent-next-gen-use-toolbar-row-narrow.ts's own top doc comment, and the
+  // identical usage in agent-next-gen-customers-table.tsx, for the full
+  // reasoning.
+  const { ref: toolbarRowRef, isNarrow: toolbarRowNarrow } = useToolbarRowNarrow();
+
   return (
     <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
       {/* `SubmitSearchInput` and `TableToolbar` as flex SIBLINGS in one row
           (not `TableToolbar`'s own built-in `searchQuery`/`onSearchChange`
-          — see `SubmitSearchInput`'s own top-of-file doc comment for why),
-          rather than two stacked rows — `TableToolbar` renders its own
-          filters+actions as one already-flush row when `searchQuery` is
-          omitted (`hasSearch` false), so putting our own search box beside
-          it here, both sharing this wrapper's own `px-6 py-3`/`gap-2`
-          (removed from `TableToolbar`'s own className below so it doesn't
-          double up), reconstructs the original single-row search+filters+
-          actions layout almost exactly, still without touching
-          `TableToolbar` itself. */}
-      <div className="flex items-center gap-2 px-6 py-3">
+          — see `SubmitSearchInput`'s own top-of-file doc comment for why)
+          — `TableToolbar` renders its own filters+actions as one already-
+          flush row when `searchQuery` is omitted (`hasSearch` false), so
+          putting our own search box beside it here, both sharing this
+          wrapper's own `px-6 py-3`/`gap-2` (removed from `TableToolbar`'s
+          own className below so it doesn't double up), reconstructs the
+          original single-row search+filters+actions layout almost exactly,
+          still without touching `TableToolbar` itself.
+          `toolbarRowNarrow` switches this row to a full-width stack
+          (search alone on top, `TableToolbar` alone below it) once
+          genuinely narrow — same fix/reasoning as
+          agent-next-gen-customers-table.tsx's identical usage. */}
+      <div
+        ref={toolbarRowRef}
+        className={cn("flex gap-2 px-6 py-3", toolbarRowNarrow ? "flex-col items-stretch" : "items-center")}
+      >
         <SubmitSearchInput
           value={searchDraft}
           onValueChange={setSearchDraft}
           onSubmit={setSearchQuery}
           placeholder="Search"
-          // `flex-1 min-w-[240px] max-w-[320px]` — same sizing class
-          // `TableToolbar`'s own real `SearchInput` uses (table.tsx), not
-          // the rigid `shrink-0` this used to have — see the identical
-          // fix/reasoning in agent-next-gen-customers-table.tsx.
-          className="flex-1 min-w-[240px] max-w-[320px]"
+          // `flex-1 min-w-[240px] max-w-[320px]` when side by side — same
+          // sizing class `TableToolbar`'s own real `SearchInput` uses
+          // (table.tsx). `w-full` once `toolbarRowNarrow` — see the row
+          // wrapper's own doc comment above.
+          className={toolbarRowNarrow ? "w-full" : "flex-1 min-w-[240px] max-w-[320px]"}
         />
         <TableToolbar
           // `gap-0` (overrides `TableToolbar`'s own base `gap-2`) — with no
@@ -862,10 +876,12 @@ export function InteractionsListView({ onAddToast, onOpenInteraction }: Interact
           // which it always is) — an empty div, but `flex-col gap-2`'s gap
           // still applies between it and row 2 (the actual filters+actions
           // row), pushing that visible row 8px lower than our search box
-          // sitting right beside it. Same fix as `CustomersListView`'s own
-          // identical `TableToolbar` usage — see that file's fuller
-          // reasoning on why zeroing this out is safe here.
-          className="flex-1 min-w-0 py-0 gap-0"
+          // sitting right beside it. Kept unconditionally even once
+          // `toolbarRowNarrow` — see the identical `gap-0` doc comment in
+          // agent-next-gen-customers-table.tsx for why. `w-full` once
+          // `toolbarRowNarrow` — see the row wrapper's own doc comment
+          // above.
+          className={cn("py-0 gap-0", toolbarRowNarrow ? "w-full" : "flex-1 min-w-0")}
           filterDefs={filterDefs}
           filterValues={filterValues}
           onFilterChange={handleFilterChange}
