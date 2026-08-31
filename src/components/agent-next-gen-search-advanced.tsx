@@ -229,6 +229,17 @@ export function useAdvancedSearchContent({
   const hasSearched = !!searched[activeType];
   const entityIsPopulated = POPULATED_ENTITY_TYPES.includes(activeType);
 
+  // Drives the trailing "Clear" button next to the filter row below — same
+  // `hasActiveFilters` semantics `TableToolbar` itself uses (table.tsx: any
+  // field with at least one selected value), just recomputed here since
+  // that component's own version isn't reachable once `viewsControl`
+  // suppresses its whole filter render path. Deliberately ignores Contacts'
+  // "Create Date" range (same scope `TableToolbar`'s own equivalent has —
+  // that chip never really has an "empty" state to clear back to, unlike
+  // the categorical ones).
+  const customersHasActiveFilters = Object.values(customers.filterValues).some((v) => (v?.length ?? 0) > 0);
+  const interactionsHasActiveFilters = Object.values(interactionFilterValues).some((v) => (v?.length ?? 0) > 0);
+
   const selectEntityType = (value: string) => {
     const next = value as AdvancedSearchEntityType;
     setActiveType(next);
@@ -246,7 +257,13 @@ export function useAdvancedSearchContent({
   // state — `CustomersListView`/`InteractionsListView` already default to
   // their full, unfiltered record set whenever their own search/filter
   // state is empty, so simply flipping `searched[activeType]` to `true` is
-  // already correct with no extra "is anything set?" branch needed.
+  // already correct with no extra "is anything set?" branch needed. Also
+  // called directly from every filter chip's own change handler below (not
+  // just the "Search" button) per a later explicit follow-up ("when a
+  // filter is selected, load the results immediately") — sticky once true,
+  // so there's nothing to undo if the agent then clears that same filter.
+  const revealResults = () => setSearched((prev) => ({ ...prev, [activeType]: true }));
+
   const runSearch = () => {
     if (activeType === "customers") {
       customers.onSearchChange(draftQuery);
@@ -262,7 +279,7 @@ export function useAdvancedSearchContent({
     // runs (see the mount-time effect / `ALL_INTERACTION_FILTER_KEYS`
     // constant above) — this only flips `hasSearched` to reveal the actual
     // list/rows below the chips.
-    setSearched((prev) => ({ ...prev, [activeType]: true }));
+    revealResults();
   };
 
   const handleSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -331,43 +348,71 @@ export function useAdvancedSearchContent({
             "Search" yet (`hasSearched` deliberately does not gate this row).
             No `onRemove` on any chip: unlike a normal "+ Filter"-added chip,
             these are permanent for as long as this entity type is active —
-            there's no add-menu left to re-add one from if removed. */}
+            there's no add-menu left to re-add one from if removed. Per a
+            later explicit follow-up ("when a filter is selected, load the
+            results immediately"), every chip's own change handler also
+            calls `revealResults()` — picking a value reveals the (now
+            filtered) list itself, same as clicking "Search" would, instead
+            of requiring that extra click afterward. A trailing "Clear"
+            button (same wording/placement `TableToolbar`'s own equivalent
+            uses) shows once any chip has a selection, resetting every
+            chip back to empty without removing them. */}
         {entityIsPopulated && (
           <div className="flex items-center gap-2 flex-wrap px-4 pb-3">
-            {activeType === "customers"
-              ? CUSTOMER_FILTER_FIELD_DEFS.map((field) => (
+            {activeType === "customers" ? (
+              <>
+                {CUSTOMER_FILTER_FIELD_DEFS.map((field) => (
                   <FilterChip
                     key={field.key}
                     label={field.label}
                     options={CUSTOMER_FILTER_VALUE_OPTIONS[field.key]}
                     selectedValues={customers.filterValues[field.key] ?? []}
-                    onSelectionChange={(values) =>
-                      customers.onFilterValuesChange({ ...customers.filterValues, [field.key]: values })
-                    }
+                    onSelectionChange={(values) => {
+                      customers.onFilterValuesChange({ ...customers.filterValues, [field.key]: values });
+                      revealResults();
+                    }}
                   />
-                ))
-              : (
-                <>
-                  {INTERACTION_HISTORY_FILTER_FIELD_DEFS.map((field) => (
-                    <FilterChip
-                      key={field.key}
-                      label={field.label}
-                      options={INTERACTION_HISTORY_FILTER_VALUE_OPTIONS[field.key]}
-                      selectedValues={interactionFilterValues[field.key] ?? []}
-                      onSelectionChange={(values) =>
-                        setInteractionFilterValues((prev) => ({ ...prev, [field.key]: values }))
-                      }
-                    />
-                  ))}
-                  <DateRangeFilterChip
-                    label="Create Date"
-                    value={interactionCreateDateRangeValue}
-                    onValueChange={setInteractionCreateDateRangeValue}
-                    customValue={interactionCreateDateRangeCustom}
-                    onCustomValueChange={setInteractionCreateDateRangeCustom}
+                ))}
+                {customersHasActiveFilters && (
+                  <Button variant="ghost" size="default" onClick={() => customers.onFilterValuesChange({})}>
+                    Clear
+                  </Button>
+                )}
+              </>
+            ) : (
+              <>
+                {INTERACTION_HISTORY_FILTER_FIELD_DEFS.map((field) => (
+                  <FilterChip
+                    key={field.key}
+                    label={field.label}
+                    options={INTERACTION_HISTORY_FILTER_VALUE_OPTIONS[field.key]}
+                    selectedValues={interactionFilterValues[field.key] ?? []}
+                    onSelectionChange={(values) => {
+                      setInteractionFilterValues((prev) => ({ ...prev, [field.key]: values }));
+                      revealResults();
+                    }}
                   />
-                </>
-              )}
+                ))}
+                <DateRangeFilterChip
+                  label="Create Date"
+                  value={interactionCreateDateRangeValue}
+                  onValueChange={(value) => {
+                    setInteractionCreateDateRangeValue(value);
+                    revealResults();
+                  }}
+                  customValue={interactionCreateDateRangeCustom}
+                  onCustomValueChange={(value) => {
+                    setInteractionCreateDateRangeCustom(value);
+                    revealResults();
+                  }}
+                />
+                {interactionsHasActiveFilters && (
+                  <Button variant="ghost" size="default" onClick={() => setInteractionFilterValues({})}>
+                    Clear
+                  </Button>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>
