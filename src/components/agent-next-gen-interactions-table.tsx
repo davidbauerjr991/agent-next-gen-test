@@ -36,7 +36,7 @@
 // accordion, and per CLAUDE.md's lyra-ui rule (never change a shared thing's
 // existing behavior/shape for one new need), this tab gets its own type
 // instead of risking that other, narrower consumer.
-import { useState, useMemo } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import {
   type SortDirection,
   type DateRangeFilterValue,
@@ -605,9 +605,39 @@ export interface InteractionsListViewProps {
    *  without a crash — a row click just silently no-ops in that case, same
    *  as `onAddToast` above. */
   onOpenInteraction?: (record: InteractionHistoryRecord) => void;
+  /** Per explicit request ("substitute a dropdown in place of the search —
+   *  can you do that without modifying the component?"): renders this node
+   *  where the toolbar's own search field would otherwise go, and hides
+   *  that search field entirely (`TableToolbar`'s own `searchQuery`/
+   *  `onSearchChange` are both optional — omitting them is the real,
+   *  documented way to get a toolbar with no search box, not a CSS hack
+   *  over one that's still there). Everything else — `filterDefs`' chips,
+   *  the "+ Filter" add-menu, "Create Date", actions — is untouched
+   *  either way. Omit entirely (default) for the toolbar's normal real
+   *  search box, unchanged — only Agent Workspace Advanced's own Search
+   *  panel (agent-next-gen-search-advanced.tsx) passes this today, with
+   *  its own "Views" dropdown. */
+  viewsControl?: ReactNode;
+  /** Seeds `addedFilterKeys`' own initial `useState` value — per explicit
+   *  request ("all of these filters should be visible as chips when the
+   *  search loads"), Agent Workspace Advanced's own Search panel passes
+   *  every `INTERACTION_HISTORY_ADDABLE_FILTER_OPTIONS` key here so every
+   *  real filter already shows as a live chip the moment this list first
+   *  renders, rather than requiring a manual "+ Filter" pick first. Omit
+   *  entirely (default: starts empty, unchanged) for every other
+   *  consumer — this only changes the STARTING value of state this
+   *  component still owns and mutates internally afterward (the "+ Filter"
+   *  menu still adds/removes normally either way); it isn't a controlled
+   *  prop the caller keeps in sync. */
+  defaultAddedFilterKeys?: string[];
 }
 
-export function InteractionsListView({ onAddToast, onOpenInteraction }: InteractionsListViewProps = {}) {
+export function InteractionsListView({
+  onAddToast,
+  onOpenInteraction,
+  viewsControl,
+  defaultAddedFilterKeys,
+}: InteractionsListViewProps = {}) {
   // Own copy of the seed data — mutated in place by the bulk-actions
   // toolbar's three "apply to every selected row" handlers below (Assign to
   // Me/Assign to Others/Change Status). `INITIAL_INTERACTION_HISTORY_RECORDS`
@@ -617,12 +647,14 @@ export function InteractionsListView({ onAddToast, onOpenInteraction }: Interact
   const [searchQuery, setSearchQuery] = useState("");
   // Which fields the agent has added via the "+ Filter" menu — same
   // "starts empty, nothing renders until explicitly added" shape
-  // `CustomersListView`'s own `addedFilterKeys` uses. Can hold
-  // `CREATE_DATE_RANGE_KEY` alongside the 6 categorical
-  // `InteractionHistoryFilterFieldDefs` keys — see that key's own doc
-  // comment for why it's still tracked here even though it doesn't go
-  // through `filterValues` below.
-  const [addedFilterKeys, setAddedFilterKeys] = useState<string[]>([]);
+  // `CustomersListView`'s own `addedFilterKeys` uses, UNLESS a caller
+  // seeds a different starting set via `defaultAddedFilterKeys` (see that
+  // prop's own doc comment) — Agent Workspace Advanced's own Search panel
+  // is the only one that does today. Can hold `CREATE_DATE_RANGE_KEY`
+  // alongside the 6 categorical `InteractionHistoryFilterFieldDefs` keys —
+  // see that key's own doc comment for why it's still tracked here even
+  // though it doesn't go through `filterValues` below.
+  const [addedFilterKeys, setAddedFilterKeys] = useState<string[]>(defaultAddedFilterKeys ?? []);
   const [filterValues, setFilterValues] = useState<Record<string, string[]>>({});
   const [createDateRangeValue, setCreateDateRangeValue] = useState<DateRangeFilterValue>("today");
   const [createDateRangeCustom, setCreateDateRangeCustom] = useState<DateRangePickerProps["value"]>(undefined);
@@ -847,9 +879,12 @@ export function InteractionsListView({ onAddToast, onOpenInteraction }: Interact
     <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
       <TableToolbar
         className="px-6"
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        searchPlaceholder="Search"
+        // Both omitted (rather than passed `undefined` conditionally
+        // inline) whenever `viewsControl` is provided — see that prop's
+        // own doc comment above for why this is the real way to get a
+        // toolbar with no search box, not a value fed into one that's
+        // still rendered.
+        {...(viewsControl ? {} : { searchQuery, onSearchChange: setSearchQuery, searchPlaceholder: "Search" })}
         filterDefs={filterDefs}
         filterValues={filterValues}
         onFilterChange={handleFilterChange}
@@ -863,8 +898,12 @@ export function InteractionsListView({ onAddToast, onOpenInteraction }: Interact
         // but renders as its own `DateRangeFilterChip` before the trigger,
         // once added, rather than through `filterDefs` — that prop can only
         // render plain multi-value `FilterChip`s, not a date range.
+        // `viewsControl` (see its own doc comment above), when passed,
+        // renders first — in the search field's place — with everything
+        // else here unchanged.
         filters={
           <>
+            {viewsControl}
             {createDateRangeAdded && (
               <DateRangeFilterChip
                 label="Create Date"

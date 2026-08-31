@@ -853,6 +853,7 @@ export function CustomersListView({
   openRowId,
   leadingChannelStack = false,
   isRowOpen,
+  viewsControl,
 }: {
   onStartInteraction: (contact: CreateNewOutboundContact, channel: ChannelType, phone: string, skillId: string) => void;
   // Filter state is a controlled prop, not local `useState`, so it lives on
@@ -933,6 +934,21 @@ export function CustomersListView({
    * that call site).
    */
   isRowOpen?: (row: CustomerListRecord) => boolean;
+  /**
+   * Per explicit request ("substitute a dropdown in place of the search —
+   * can you do that without modifying the component?"): renders this node
+   * where the toolbar's own search field would otherwise go, and hides
+   * that search field entirely (`TableToolbar`'s own `searchQuery`/
+   * `onSearchChange` are both optional — omitting them is the real,
+   * documented way to get a toolbar with no search box, not a CSS hack
+   * over one that's still there). Everything else — `filterDefs`' chips,
+   * the "+ Filter" add-menu, actions — is untouched either way; this only
+   * ever swaps the ONE search field for something else. Omit entirely
+   * (default) for the toolbar's normal real search box, unchanged — only
+   * Agent Workspace Advanced's own Search panel (agent-next-gen-search-
+   * advanced.tsx) passes this today, with its own "Views" dropdown.
+   */
+  viewsControl?: React.ReactNode;
 }) {
   // `"channels"` is dropped from the column system entirely in
   // `leadingChannelStack` mode — it's no longer a normal column at all
@@ -1020,8 +1036,12 @@ export function CustomersListView({
     <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
       <TableToolbar
         className="px-6"
-        searchQuery={searchQuery}
-        onSearchChange={onSearchChange}
+        // Both omitted (rather than passed `undefined` conditionally
+        // inline) whenever `viewsControl` is provided — see that prop's
+        // own doc comment above for why this is the real way to get a
+        // toolbar with no search box, not a value fed into one that's
+        // still rendered.
+        {...(viewsControl ? {} : { searchQuery, onSearchChange })}
         filterDefs={filterDefs}
         filterValues={filterValues}
         onFilterChange={handleFilterChange}
@@ -1038,27 +1058,32 @@ export function CustomersListView({
         // are active at all" control that decides what shows up in
         // `filterDefs` in the first place, same distinction
         // FilterChip.stories.tsx's own demo draws between its per-filter
-        // chips and this single add-menu.
+        // chips and this single add-menu. `viewsControl` (see its own doc
+        // comment above), when passed, renders first — in the search
+        // field's place — with this "+ Filter" menu unchanged right after.
         filters={
-          <Select
-            options={CUSTOMER_FILTER_FIELD_DEFS.map((f) => ({ value: f.key, label: f.label }))}
-            multiple
-            searchable
-            showSelectAll
-            dropdownAlign="left"
-            values={addedFilterKeys}
-            onValuesChange={handleAddedFiltersChange}
-            trigger={
-              <button
-                type="button"
-                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lyra-sm lyra-label transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lyra-border-focus focus-visible:ring-offset-2 border border-lyra-border-soft bg-lyra-bg-control text-lyra-fg-action hover:bg-lyra-state-hover active:bg-lyra-state-pressed h-8 px-3"
-              >
-                <Plus className="h-4 w-4" strokeWidth={1.5} />
-                Filter
-              </button>
-            }
-            className="inline-flex relative"
-          />
+          <>
+            {viewsControl}
+            <Select
+              options={CUSTOMER_FILTER_FIELD_DEFS.map((f) => ({ value: f.key, label: f.label }))}
+              multiple
+              searchable
+              showSelectAll
+              dropdownAlign="left"
+              values={addedFilterKeys}
+              onValuesChange={handleAddedFiltersChange}
+              trigger={
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lyra-sm lyra-label transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lyra-border-focus focus-visible:ring-offset-2 border border-lyra-border-soft bg-lyra-bg-control text-lyra-fg-action hover:bg-lyra-state-hover active:bg-lyra-state-pressed h-8 px-3"
+                >
+                  <Plus className="h-4 w-4" strokeWidth={1.5} />
+                  Filter
+                </button>
+              }
+              className="inline-flex relative"
+            />
+          </>
         }
         actionDefs={[
           { key: "refresh", label: "Refresh", icon: <RefreshCw className="h-4 w-4" strokeWidth={1.5} /> },

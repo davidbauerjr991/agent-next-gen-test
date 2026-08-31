@@ -16,15 +16,21 @@
 //
 // Scope, per explicit request: "Customers" and "Contacts" get the real
 // treatment below, reusing each one's own already-existing, already-full
-// list component (`CustomersListView`/`InteractionsListView`) exactly as
-// today, completely unmodified — every filter either one already supports
-// (the full "+ Filter" menus in agent-next-gen-customers-table.tsx /
-// agent-next-gen-interactions-table.tsx) is what shows here, not a
-// hand-picked subset and not the placeholder chip labels the reference
-// screenshot happened to show (that screenshot's own "Status/Skill/
-// Channel/..." chips don't correspond to this app's real Customer fields
-// at all — see `AdvancedSearchCustomersProps`' own doc comment). "Messages"/
-// "Threads" are selectable in the dropdown but render "Coming soon" — same
+// list component (`CustomersListView`/`InteractionsListView`) — every
+// filter either one already supports (the full "+ Filter" menus in
+// agent-next-gen-customers-table.tsx / agent-next-gen-interactions-
+// table.tsx) is what shows here, not a hand-picked subset and not the
+// placeholder chip labels the reference screenshot happened to show (that
+// screenshot's own "Status/Skill/Channel/..." chips don't correspond to
+// this app's real Customer fields at all — see `AdvancedSearchCustomersProps`'
+// own doc comment). Two small, additive, backward-compatible follow-up
+// requests since then (both real props those two files now expose, off by
+// default — see `viewsControl`'s own doc comment on each): every filter
+// shows as a live chip the moment results first appear rather than
+// requiring a manual "+ Filter" pick first, and each list's own in-table
+// search field is replaced with a "Views" dropdown (a stand-in for a
+// future admin-configured list — just "All" today). "Messages"/"Threads"
+// are selectable in the dropdown but render "Coming soon" — same
 // placeholder copy the old panel already used for those two — per explicit
 // request to leave those for later.
 import { useState, type KeyboardEvent } from "react";
@@ -42,11 +48,13 @@ import {
 import {
   InteractionsListView,
   type InteractionHistoryRecord,
+  INTERACTION_HISTORY_ADDABLE_FILTER_OPTIONS,
 } from "@/components/agent-next-gen-interactions-table";
 import {
   CustomersListView,
   type CustomerListRecord,
   type CustomerColKey,
+  CUSTOMER_FILTER_FIELD_DEFS,
 } from "@/components/agent-next-gen-customers-table";
 import {
   CustomerRowInfoPanel,
@@ -71,6 +79,23 @@ export const ADVANCED_SEARCH_ENTITY_LABELS: Record<AdvancedSearchEntityType, str
  *  straight to "Coming soon" with no search chrome pretending there's
  *  something to search yet. */
 const POPULATED_ENTITY_TYPES: AdvancedSearchEntityType[] = ["customers", "contacts"];
+
+// Per explicit request ("all of these filters should be visible as chips
+// when the search loads"): every real key each list already supports as a
+// filter — not a hand-picked subset — so `runSearch`/`defaultAddedFilterKeys`
+// below can pre-populate the FULL set the moment results first show,
+// instead of the normal "starts empty, add one at a time" behavior both
+// `CustomersListView`/`InteractionsListView` still default to for every
+// other consumer.
+const ALL_CUSTOMER_FILTER_KEYS = CUSTOMER_FILTER_FIELD_DEFS.map((f) => f.key);
+const ALL_INTERACTION_FILTER_KEYS = INTERACTION_HISTORY_ADDABLE_FILTER_OPTIONS.map((f) => f.value);
+
+// Per explicit request ("make this a dropdown for 'Views' that are
+// configured by the admin and set it to 'All' to start"): a placeholder for
+// a future admin-configured list — today there's only the one required
+// entry, selected by default, same as a fresh admin setup would ship with
+// nothing else configured yet.
+const VIEWS_OPTIONS = [{ value: "all", label: "All" }];
 
 /** Everything the "Customers" entity needs — deliberately the SAME shape
  *  `SearchPanelCustomersProps` (agent-next-gen-search-panel.tsx) already
@@ -141,6 +166,13 @@ export function useAdvancedSearchContent({
   // (`runSearch` below) — see that function's own doc comment for why
   // Contacts' own typed text here is never committed anywhere.
   const [draftQuery, setDraftQuery] = useState("");
+  // Per explicit request: replaces the in-table toolbar's own search field
+  // (see `viewsControl`'s own doc comment at its `CustomersListView`/
+  // `InteractionsListView` call sites below) — a stand-in for a future
+  // admin-configured list of saved views. Just the one "All" option today
+  // (`VIEWS_OPTIONS`), selected by default; shared across both entity
+  // types since there's nothing yet to keep separate per type.
+  const [viewsValue, setViewsValue] = useState("all");
 
   const hasSearched = !!searched[activeType];
   const entityIsPopulated = POPULATED_ENTITY_TYPES.includes(activeType);
@@ -161,26 +193,51 @@ export function useAdvancedSearchContent({
   // filters added must still reveal the full list, not stay on the empty
   // state — `CustomersListView`/`InteractionsListView` already default to
   // their full, unfiltered record set whenever their own search/filter
-  // state is empty, so simply flipping `searched[activeType]` to `true`
-  // (leaving `filterValues`/`addedFilterKeys` exactly as they already are)
-  // is already correct with no extra "is anything set?" branch needed.
+  // state is empty, so simply flipping `searched[activeType]` to `true` is
+  // already correct with no extra "is anything set?" branch needed.
   const runSearch = () => {
-    if (activeType === "customers") customers.onSearchChange(draftQuery);
+    const firstSearch = !searched[activeType];
+    if (activeType === "customers") {
+      customers.onSearchChange(draftQuery);
+      // Per explicit request ("all of these filters should be visible as
+      // chips when the search loads"): only on the FIRST reveal — an agent
+      // who's since removed one manually (the "+ Filter" menu still works
+      // normally, per explicit request to leave it alone) shouldn't have it
+      // silently reappear just because they clicked Search again.
+      if (firstSearch) customers.onAddedFilterKeysChange(ALL_CUSTOMER_FILTER_KEYS);
+    }
     // Contacts' own `InteractionsListView` search field is intentionally
-    // left alone here — it manages its own internal search/filter state
-    // (unlike Customers, which was already lifted up to the page for the
-    // Desk-tab Customers view to share) and starts empty on first reveal,
-    // same as opening any other fresh view. This gate only decides WHEN to
-    // reveal it, not what it's pre-filtered to; its own full toolbar
-    // (search box + "+ Filter" menu, already covering every
-    // `INTERACTION_HISTORY_FILTER_FIELD_DEFS` field) is right there once
-    // it shows, same as it always was in the old panel.
+    // left alone here — it manages its own internal search state (unlike
+    // Customers, which was already lifted up to the page for the Desk-tab
+    // Customers view to share) and starts empty on first reveal, same as
+    // opening any other fresh view. This gate only decides WHEN to reveal
+    // it, not what it's pre-filtered to. Its filter chips DO come
+    // pre-populated on that first reveal though — via `defaultAddedFilterKeys`
+    // at its own call site below, not here (that prop only seeds a
+    // `useState` initializer; it wouldn't do anything on a SECOND search,
+    // unlike Customers' own lifted state above, which needed this explicit
+    // `firstSearch` guard instead).
     setSearched((prev) => ({ ...prev, [activeType]: true }));
   };
 
   const handleSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") runSearch();
   };
+
+  // Passed as `viewsControl` to both `CustomersListView` and
+  // `InteractionsListView` below — see that prop's own doc comment at each
+  // call site (and on the type itself, agent-next-gen-customers-table.tsx/
+  // agent-next-gen-interactions-table.tsx) for what it replaces and why.
+  // One shared node (not built separately per entity type) since it's the
+  // exact same control either way.
+  const viewsControl = (
+    <Select
+      options={VIEWS_OPTIONS}
+      value={viewsValue}
+      onValueChange={setViewsValue}
+      className="w-[120px] shrink-0"
+    />
+  );
 
   return {
     title: "Search",
@@ -259,6 +316,7 @@ export function useAdvancedSearchContent({
           openRowId={customers.selectedRow?.contactNumber ?? null}
           leadingChannelStack
           isRowOpen={customers.isRowOpen}
+          viewsControl={viewsControl}
         />
         <CustomerRowInfoPanel
           row={customers.selectedRow}
@@ -275,7 +333,12 @@ export function useAdvancedSearchContent({
         />
       </div>
     ) : (
-      <InteractionsListView onAddToast={onAddToast} onOpenInteraction={onOpenInteraction} />
+      <InteractionsListView
+        onAddToast={onAddToast}
+        onOpenInteraction={onOpenInteraction}
+        viewsControl={viewsControl}
+        defaultAddedFilterKeys={ALL_INTERACTION_FILTER_KEYS}
+      />
     ),
   };
 }
