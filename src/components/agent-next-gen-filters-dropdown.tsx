@@ -151,7 +151,25 @@ export function FiltersDropdownChip({
         ) : undefined
       }
       content={
-        <div className="flex h-full flex-col min-h-0 px-3 py-1">
+        // `maxHeight: var(--radix-popover-content-available-height)` —
+        // the same real CSS custom property Radix Popper sets on the
+        // Content element itself (see popover.tsx's own comment on this
+        // exact variable) — read directly here instead of relying on this
+        // div's height:100% resolving through Popover's own body wrapper
+        // (a `flex: 1 1 auto` item one level up). Custom properties
+        // inherit to every descendant regardless of layout mode, so this
+        // is a hard, direct cap independent of any ambiguity in that
+        // intermediate flex-percentage chain — without it, if this div's
+        // own height silently fell back to its natural (unclamped)
+        // content size, it would grow past `Popover`'s own body region
+        // and its plain, un-hidden `overflow-auto` scrollbar (not this
+        // component's own hidden-scrollbar/chevron list) would end up
+        // being what actually scrolls — exactly the "using the scrollbar
+        // instead of the chevron scroll" bug this fixes.
+        <div
+          className="flex flex-col min-h-0 overflow-hidden px-3 py-1"
+          style={{ maxHeight: "var(--radix-popover-content-available-height)" }}
+        >
           {canScrollUp && <ScrollChevronButton direction="up" onStep={() => scrollListBy(-6)} />}
           <div
             ref={listRef}
