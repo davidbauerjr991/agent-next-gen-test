@@ -70,6 +70,7 @@ import {
 } from "@nicecxone/lyra-ui";
 import { CREATE_NEW_CUSTOMERS } from "@nicecxone/lyra-ui/customers-data";
 import { CREATE_NEW_AGENTS } from "@nicecxone/lyra-ui/agents-data";
+import { SubmitSearchInput } from "@/components/agent-next-gen-submit-search-input";
 import {
   INTERACTION_CHANNELS,
   RESOLUTION_TIMES,
@@ -610,6 +611,13 @@ export function InteractionsListView({ onAddToast, onOpenInteraction }: Interact
   // itself is never touched, so a remount (e.g. switching desk tabs away and
   // back) starts fresh rather than keeping stale bulk edits around.
   const [records, setRecords] = useState<InteractionHistoryRecord[]>(INITIAL_INTERACTION_HISTORY_RECORDS);
+  // Per explicit request — this table searches a (simulated) ~50k-record
+  // database, so filtering shouldn't re-run on every keystroke. `searchDraft`
+  // is the live-typed value the field itself displays; `searchQuery` (used
+  // below in `filtered`) only updates once the agent actually submits —
+  // Enter, or `SubmitSearchInput`'s own arrow button — see that component's
+  // own top-of-file doc comment for the full reasoning/what it replaces.
+  const [searchDraft, setSearchDraft] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string[]>>({});
   const [createDateRangeValue, setCreateDateRangeValue] = useState<DateRangeFilterValue>("today");
@@ -821,11 +829,21 @@ export function InteractionsListView({ onAddToast, onOpenInteraction }: Interact
 
   return (
     <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
+      {/* Own row, not `TableToolbar`'s own built-in `searchQuery`/
+          `onSearchChange` — see `SubmitSearchInput`'s own top-of-file doc
+          comment for why (defers filtering until submit, and needs its own
+          arrow button `TableToolbar`'s fixed search field has no slot for). */}
+      <div className="px-6 pt-3">
+        <SubmitSearchInput
+          value={searchDraft}
+          onValueChange={setSearchDraft}
+          onSubmit={setSearchQuery}
+          placeholder="Search"
+          className="max-w-[320px]"
+        />
+      </div>
       <TableToolbar
-        className="px-6"
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        searchPlaceholder="Search"
+        className="px-6 pt-0"
         filterDefs={filterDefs}
         filterValues={filterValues}
         onFilterChange={handleFilterChange}

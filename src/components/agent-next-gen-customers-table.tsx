@@ -34,6 +34,7 @@ import { OUTBOUND_CONFIG, OUTBOUND_CUSTOMERS } from "@/components/agent-next-gen
 import { type ContactInteraction } from "@/components/agent-next-gen-interaction-dashboard";
 import { CURRENT_AGENT_NAME, nextInteractionSortDirection } from "@/components/agent-next-gen-shared-utils";
 import { CHANNEL_TYPE_ICON_COLOR_CLASS } from "@/components/agent-next-gen-contact-history";
+import { SubmitSearchInput } from "@/components/agent-next-gen-submit-search-input";
 import { cn } from "@/lib/utils";
 import {
   Plus,
@@ -977,6 +978,19 @@ export function CustomersListView({
     : CUSTOMER_ALL_COLUMN_DEFS;
   const [visibleCols, setVisibleCols] = useState<Set<string>>(new Set(columnKeys));
 
+  // Per explicit request — this table searches a (simulated) ~50k-record
+  // database, so filtering shouldn't re-run on every keystroke. `searchQuery`/
+  // `onSearchChange` above stay the real, lifted, "actually filters"
+  // committed value (unchanged prop contract — nothing else in the page
+  // ever resets it out from under this component while mounted); this local
+  // `searchDraft` is what the field itself actually displays/types into,
+  // synced from the committed value once on mount. `onSearchChange` (the
+  // prop) now only ever gets called from `SubmitSearchInput`'s own
+  // `onSubmit` below — Enter, its arrow button, or its clear button — never
+  // on every keystroke. See that component's own top-of-file doc comment
+  // for the fuller reasoning (same fix as `InteractionsListView`'s own).
+  const [searchDraft, setSearchDraft] = useState(searchQuery);
+
   // Always every field — per explicit request, nothing is gated behind a
   // "+ Filter" add-menu any more (see `addedFilterKeys`'s own doc comment
   // above); `TableToolbar` renders these as `FilterChip`s inline next to
@@ -1043,18 +1057,32 @@ export function CustomersListView({
     // Matches the sibling Dashboard-tab column's own `min-w-0` a few
     // lines below in this same file.
     <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
+      {/* Own row, not `TableToolbar`'s own built-in search box — see
+          `SubmitSearchInput`'s own top-of-file doc comment for why (defers
+          filtering until submit, and needs its own arrow button
+          `TableToolbar`'s fixed search field has no slot for). Omitted
+          entirely whenever `viewsControl` is provided, same as the search
+          box it replaces — see that prop's own doc comment. */}
+      {!viewsControl && (
+        <div className="px-6 pt-3">
+          <SubmitSearchInput
+            value={searchDraft}
+            onValueChange={setSearchDraft}
+            onSubmit={onSearchChange}
+            placeholder="Search"
+            className="max-w-[320px]"
+          />
+        </div>
+      )}
       <TableToolbar
-        className="px-6"
-        // Both omitted (rather than passed `undefined` conditionally
-        // inline) whenever `viewsControl` is provided — see that prop's
-        // own doc comment above for why this is the real way to get a
-        // toolbar with no search box, not a value fed into one that's
-        // still rendered.
+        className={cn("px-6", !viewsControl && "pt-0")}
+        // Omitted (rather than passed `undefined` conditionally inline)
+        // whenever `viewsControl` is provided — see that prop's own doc
+        // comment above for why this is the real way to get a toolbar with
+        // no filter chips, not a value fed into one that's still rendered.
         {...(viewsControl
           ? {}
           : {
-              searchQuery,
-              onSearchChange,
               filterDefs,
               filterValues,
               onFilterChange: handleFilterChange,
