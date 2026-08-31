@@ -114,7 +114,15 @@ export function FiltersDropdownChip({
         // cases — real collision detection (flipping/shifting to whichever
         // side actually has room) needs a positioning primitive like
         // `Popover`'s own Radix `avoidCollisions`, not plain CSS.
-        <div className="absolute right-0 top-full mt-1 z-50 min-w-[260px] max-w-[calc(100vw-1rem)] rounded-lyra-md border border-lyra-border-subtle bg-lyra-bg-surface-overlay shadow-lg p-3 flex flex-col gap-2">
+        // `max-h-[70vh]` + `overflow-hidden` caps the panel's total height
+        // against the viewport — there's no ancestor to bound it against
+        // (it's `absolute`), so without this a long field list (e.g.
+        // Customers' 12 fields) just grows the box straight off the bottom
+        // of the screen. Only the field list itself scrolls (the inner
+        // `overflow-y-auto` wrapper below, with `min-h-0` so it can
+        // actually shrink instead of forcing the panel to grow past its
+        // cap) — the search box and "Clear all" stay pinned in view.
+        <div className="absolute right-0 top-full mt-1 z-50 min-w-[260px] max-w-[calc(100vw-1rem)] max-h-[70vh] overflow-hidden rounded-lyra-md border border-lyra-border-subtle bg-lyra-bg-surface-overlay shadow-lg p-3 flex flex-col gap-2">
           <SearchInput
             value={fieldSearch}
             onValueChange={setFieldSearch}
@@ -122,19 +130,21 @@ export function FiltersDropdownChip({
             aria-label="Search filters"
             size="sm"
           />
-          {visibleDefs.length === 0 ? (
-            <p className="lyra-body-sm text-lyra-fg-disabled text-center py-2">No matching filters</p>
-          ) : (
-            visibleDefs.map((f) => (
-              <FilterChip
-                key={f.key}
-                label={f.label}
-                options={f.options}
-                selectedValues={filterValues[f.key] ?? []}
-                onSelectionChange={(vals) => onFilterChange(f.key, vals)}
-              />
-            ))
-          )}
+          <div className="overflow-y-auto min-h-0 flex flex-col gap-2">
+            {visibleDefs.length === 0 ? (
+              <p className="lyra-body-sm text-lyra-fg-disabled text-center py-2">No matching filters</p>
+            ) : (
+              visibleDefs.map((f) => (
+                <FilterChip
+                  key={f.key}
+                  label={f.label}
+                  options={f.options}
+                  selectedValues={filterValues[f.key] ?? []}
+                  onSelectionChange={(vals) => onFilterChange(f.key, vals)}
+                />
+              ))
+            )}
+          </div>
           {hasActiveFilters && (
             <button
               type="button"
@@ -142,7 +152,7 @@ export function FiltersDropdownChip({
                 onFilterClear();
                 setOpen(false);
               }}
-              className="lyra-body-md text-lyra-fg-secondary hover:text-lyra-fg-default transition-colors text-left"
+              className="lyra-body-md text-lyra-fg-secondary hover:text-lyra-fg-default transition-colors text-left shrink-0"
             >
               Clear all
             </button>
