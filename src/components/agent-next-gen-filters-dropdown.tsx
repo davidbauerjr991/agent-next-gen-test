@@ -29,6 +29,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { FilterChip, SearchInput, type FilterChipOption } from "@nicecxone/lyra-ui";
 import { cn } from "@/lib/utils";
+import { useScrollChevrons, ScrollChevronButton } from "@/components/agent-next-gen-scroll-chevron";
 
 export interface FiltersDropdownChipProps {
   filterDefs: { key: string; label: string; options: FilterChipOption[] }[];
@@ -46,6 +47,16 @@ export function FiltersDropdownChip({
   const [open, setOpen] = useState(false);
   const [fieldSearch, setFieldSearch] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
+  // Same hover-driven chevron-scroll affordance lyra-ui's own real menu-
+  // style components use for an overflowing list (`Select`'s multi-select
+  // listbox, `MenuRadix`) instead of a plain scrollbar — see
+  // agent-next-gen-scroll-chevron.tsx's own top doc comment for why this
+  // is a local reimplementation rather than an import from lyra-ui itself.
+  const listRef = useRef<HTMLDivElement>(null);
+  const { canScrollUp, canScrollDown, onScroll: onListScroll } = useScrollChevrons(listRef, [open, fieldSearch]);
+  const scrollListBy = (delta: number) => {
+    listRef.current?.scrollBy({ top: delta });
+  };
 
   // Same outside-click-closes behavior `collapsedFilterChip` gives its own
   // dropdown — mousedown (not click) so it fires before whatever the click
@@ -118,10 +129,14 @@ export function FiltersDropdownChip({
         // against the viewport — there's no ancestor to bound it against
         // (it's `absolute`), so without this a long field list (e.g.
         // Customers' 12 fields) just grows the box straight off the bottom
-        // of the screen. Only the field list itself scrolls (the inner
-        // `overflow-y-auto` wrapper below, with `min-h-0` so it can
-        // actually shrink instead of forcing the panel to grow past its
-        // cap) — the search box and "Clear all" stay pinned in view.
+        // of the screen. The field list itself no longer scrolls via a
+        // plain browser scrollbar — it now uses the same hover-driven
+        // chevron affordance `Select`'s own multi-select listbox uses for
+        // this identical shape (outer `flex flex-col` stacking the
+        // chevrons, pinned, around the actual scrolling div — see
+        // agent-next-gen-scroll-chevron.tsx and lyra-ui's own select.tsx
+        // for the reference structure this mirrors) — the search box and
+        // "Clear all" stay pinned in view outside that scrolling region.
         <div className="absolute right-0 top-full mt-1 z-50 min-w-[260px] max-w-[calc(100vw-1rem)] max-h-[70vh] overflow-hidden rounded-lyra-md border border-lyra-border-subtle bg-lyra-bg-surface-overlay shadow-lg p-3 flex flex-col gap-2">
           <SearchInput
             value={fieldSearch}
@@ -130,20 +145,29 @@ export function FiltersDropdownChip({
             aria-label="Search filters"
             size="sm"
           />
-          <div className="overflow-y-auto min-h-0 flex flex-col gap-2">
-            {visibleDefs.length === 0 ? (
-              <p className="lyra-body-sm text-lyra-fg-disabled text-center py-2">No matching filters</p>
-            ) : (
-              visibleDefs.map((f) => (
-                <FilterChip
-                  key={f.key}
-                  label={f.label}
-                  options={f.options}
-                  selectedValues={filterValues[f.key] ?? []}
-                  onSelectionChange={(vals) => onFilterChange(f.key, vals)}
-                />
-              ))
-            )}
+          <div className="flex flex-1 flex-col min-h-0">
+            {canScrollUp && <ScrollChevronButton direction="up" onStep={() => scrollListBy(-6)} />}
+            <div
+              ref={listRef}
+              onScroll={onListScroll}
+              className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-2 [&::-webkit-scrollbar]:hidden"
+              style={{ scrollbarWidth: "none" }}
+            >
+              {visibleDefs.length === 0 ? (
+                <p className="lyra-body-sm text-lyra-fg-disabled text-center py-2">No matching filters</p>
+              ) : (
+                visibleDefs.map((f) => (
+                  <FilterChip
+                    key={f.key}
+                    label={f.label}
+                    options={f.options}
+                    selectedValues={filterValues[f.key] ?? []}
+                    onSelectionChange={(vals) => onFilterChange(f.key, vals)}
+                  />
+                ))
+              )}
+            </div>
+            {canScrollDown && <ScrollChevronButton direction="down" onStep={() => scrollListBy(6)} />}
           </div>
           {hasActiveFilters && (
             <button
