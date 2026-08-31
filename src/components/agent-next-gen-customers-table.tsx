@@ -936,17 +936,25 @@ export function CustomersListView({
   isRowOpen?: (row: CustomerListRecord) => boolean;
   /**
    * Per explicit request ("substitute a dropdown in place of the search —
-   * can you do that without modifying the component?"): renders this node
-   * where the toolbar's own search field would otherwise go, and hides
-   * that search field entirely (`TableToolbar`'s own `searchQuery`/
-   * `onSearchChange` are both optional — omitting them is the real,
-   * documented way to get a toolbar with no search box, not a CSS hack
-   * over one that's still there). Everything else — `filterDefs`' chips,
-   * the "+ Filter" add-menu, actions — is untouched either way; this only
-   * ever swaps the ONE search field for something else. Omit entirely
-   * (default) for the toolbar's normal real search box, unchanged — only
-   * Agent Workspace Advanced's own Search panel (agent-next-gen-search-
-   * advanced.tsx) passes this today, with its own "Views" dropdown.
+   * can you do that without modifying the component?", later widened to
+   * "move the filters above the line ... before the search is
+   * implemented"): when provided, this table's filter UI moves out of the
+   * toolbar entirely — no search box, no `filterDefs` chips, no
+   * "+ Filter" add-menu — leaving just this node (rendered where the
+   * search field used to be) plus the unrelated `actionDefs`/`actions`
+   * (Refresh, New Customer, `ColumnToggle`). Real, documented mechanism,
+   * not a CSS hack: every one of `TableToolbar`'s own `searchQuery`/
+   * `onSearchChange`/`filterDefs`/`filterValues`/`onFilterChange`/
+   * `onFilterClear` props is independently optional — omitting all of
+   * them is the real way to get a toolbar with none of that, not a value
+   * fed into pieces that still render. The caller is then expected to
+   * render its own filter chips elsewhere using the `filterValues`/
+   * `onFilterValuesChange` props above directly (already fully lifted/
+   * controlled for every consumer, unlike `InteractionsListView`'s own
+   * equivalent). Omit entirely (default) for the toolbar's normal, fully
+   * self-contained real search+filter row, unchanged — only Agent
+   * Workspace Advanced's own Search panel (agent-next-gen-search-
+   * advanced.tsx) passes this today.
    */
   viewsControl?: React.ReactNode;
 }) {
@@ -1041,11 +1049,16 @@ export function CustomersListView({
         // own doc comment above for why this is the real way to get a
         // toolbar with no search box, not a value fed into one that's
         // still rendered.
-        {...(viewsControl ? {} : { searchQuery, onSearchChange })}
-        filterDefs={filterDefs}
-        filterValues={filterValues}
-        onFilterChange={handleFilterChange}
-        onFilterClear={clearAllFilters}
+        {...(viewsControl
+          ? {}
+          : {
+              searchQuery,
+              onSearchChange,
+              filterDefs,
+              filterValues,
+              onFilterChange: handleFilterChange,
+              onFilterClear: clearAllFilters,
+            })}
         // The "+ Filter" add-menu itself — `TableToolbar`'s own `filters`
         // slot renders right alongside the `filterDefs`-driven chips above
         // (table.tsx: filterChips, then filters, then the Clear button),
@@ -1058,12 +1071,13 @@ export function CustomersListView({
         // are active at all" control that decides what shows up in
         // `filterDefs` in the first place, same distinction
         // FilterChip.stories.tsx's own demo draws between its per-filter
-        // chips and this single add-menu. `viewsControl` (see its own doc
-        // comment above), when passed, renders first — in the search
-        // field's place — with this "+ Filter" menu unchanged right after.
+        // chips and this single add-menu. All of this — `filterDefs`/
+        // `filterValues`/`onFilterChange`/`onFilterClear` above included —
+        // is omitted entirely whenever `viewsControl` is passed (see that
+        // prop's own doc comment): `filters` then renders ONLY
+        // `viewsControl` itself, no chips, no add-menu.
         filters={
-          <>
-            {viewsControl}
+          viewsControl ?? (
             <Select
               options={CUSTOMER_FILTER_FIELD_DEFS.map((f) => ({ value: f.key, label: f.label }))}
               multiple
@@ -1083,7 +1097,7 @@ export function CustomersListView({
               }
               className="inline-flex relative"
             />
-          </>
+          )
         }
         actionDefs={[
           { key: "refresh", label: "Refresh", icon: <RefreshCw className="h-4 w-4" strokeWidth={1.5} /> },

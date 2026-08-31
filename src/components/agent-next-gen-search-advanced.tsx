@@ -23,22 +23,33 @@
 // placeholder chip labels the reference screenshot happened to show (that
 // screenshot's own "Status/Skill/Channel/..." chips don't correspond to
 // this app's real Customer fields at all — see `AdvancedSearchCustomersProps`'
-// own doc comment). Two small, additive, backward-compatible follow-up
-// requests since then (both real props those two files now expose, off by
+// own doc comment). Three small, additive, backward-compatible follow-up
+// requests since then (all real props those two files now expose, off by
 // default — see `viewsControl`'s own doc comment on each): every filter
-// shows as a live chip the moment results first appear rather than
-// requiring a manual "+ Filter" pick first, and each list's own in-table
-// search field is replaced with a "Views" dropdown (a stand-in for a
-// future admin-configured list — just "All" today). "Messages"/"Threads"
-// are selectable in the dropdown but render "Coming soon" — same
-// placeholder copy the old panel already used for those two — per explicit
-// request to leave those for later.
-import { useState, type KeyboardEvent } from "react";
+// shows as a live, permanent chip (no manual "+ Filter" pick, no per-chip
+// remove) instead of the normal add-one-at-a-time toolbar behavior; each
+// list's own in-table search field is replaced with a "Views" dropdown (a
+// stand-in for a future admin-configured list — just "All" today); and,
+// per the latest follow-up, those filter chips render in THIS panel's own
+// always-visible header — below the entity/search/Search row, above the
+// divider — rather than inside either list's toolbar, and are visible and
+// usable immediately when the panel opens, before the agent ever clicks
+// "Search" (see the `headerContent` filter row below, and `CUSTOMER_FILTER_
+// VALUE_OPTIONS`/`INTERACTION_HISTORY_FILTER_VALUE_OPTIONS`, both widened
+// from module-private to support it). "Messages"/"Threads" are selectable
+// in the dropdown but render "Coming soon" — same placeholder copy the old
+// panel already used for those two — per explicit request to leave those
+// for later.
+import { useState, useEffect, useRef, type KeyboardEvent } from "react";
 import { Search as SearchIcon } from "lucide-react";
 import {
   Select,
   SearchInput,
   Button,
+  FilterChip,
+  DateRangeFilterChip,
+  type DateRangeFilterValue,
+  type DateRangePickerProps,
   type EmbeddablePanelContent,
   type ChannelType,
   type CreateNewOutboundContact,
@@ -49,12 +60,15 @@ import {
   InteractionsListView,
   type InteractionHistoryRecord,
   INTERACTION_HISTORY_ADDABLE_FILTER_OPTIONS,
+  INTERACTION_HISTORY_FILTER_FIELD_DEFS,
+  INTERACTION_HISTORY_FILTER_VALUE_OPTIONS,
 } from "@/components/agent-next-gen-interactions-table";
 import {
   CustomersListView,
   type CustomerListRecord,
   type CustomerColKey,
   CUSTOMER_FILTER_FIELD_DEFS,
+  CUSTOMER_FILTER_VALUE_OPTIONS,
 } from "@/components/agent-next-gen-customers-table";
 import {
   CustomerRowInfoPanel,
@@ -81,12 +95,15 @@ export const ADVANCED_SEARCH_ENTITY_LABELS: Record<AdvancedSearchEntityType, str
 const POPULATED_ENTITY_TYPES: AdvancedSearchEntityType[] = ["customers", "contacts"];
 
 // Per explicit request ("all of these filters should be visible as chips
-// when the search loads"): every real key each list already supports as a
-// filter — not a hand-picked subset — so `runSearch`/`defaultAddedFilterKeys`
-// below can pre-populate the FULL set the moment results first show,
-// instead of the normal "starts empty, add one at a time" behavior both
-// `CustomersListView`/`InteractionsListView` still default to for every
-// other consumer.
+// when the search loads", later widened to show them BEFORE the search
+// too): every real key each list already supports as a filter — not a
+// hand-picked subset — kept permanently "added" for both entity types
+// (Customers via the mount-time effect below; Contacts by simply always
+// passing this constant, since it never needs to change) instead of the
+// normal "starts empty, add one at a time" behavior both `CustomersListView`/
+// `InteractionsListView` still default to for every other consumer. Also
+// doubles as the key list this file's own `headerContent` filter row below
+// iterates to build each entity's permanent `FilterChip`s.
 const ALL_CUSTOMER_FILTER_KEYS = CUSTOMER_FILTER_FIELD_DEFS.map((f) => f.key);
 const ALL_INTERACTION_FILTER_KEYS = INTERACTION_HISTORY_ADDABLE_FILTER_OPTIONS.map((f) => f.value);
 
@@ -174,6 +191,41 @@ export function useAdvancedSearchContent({
   // types since there's nothing yet to keep separate per type.
   const [viewsValue, setViewsValue] = useState("all");
 
+  // Contacts' filter state, lifted up from `InteractionsListView`'s own
+  // internal `useState` (which normally owns this when `viewsControl` isn't
+  // passed) into this hook instead — same reason Customers' equivalent is
+  // already lifted all the way up to `AgentWorkspaceAdvancedPage.tsx`: the
+  // new always-visible `FilterChip` row in `headerContent` below needs to
+  // read/write these outside of `InteractionsListView`'s own render tree.
+  // No `addedFilterKeys` state needed here (unlike Customers, which shares
+  // its state with the Desk-tab table and so needs its own explicit "make
+  // sure every key counts as added" step below) — Contacts' filters are
+  // permanent and local to this file alone, so `ALL_INTERACTION_FILTER_KEYS`
+  // is passed as a fixed constant directly at its `InteractionsListView`
+  // call site below; it never needs to change.
+  const [interactionFilterValues, setInteractionFilterValues] = useState<Record<string, string[]>>({});
+  const [interactionCreateDateRangeValue, setInteractionCreateDateRangeValue] = useState<DateRangeFilterValue>("today");
+  const [interactionCreateDateRangeCustom, setInteractionCreateDateRangeCustom] = useState<DateRangePickerProps["value"]>(undefined);
+
+  // Per the latest explicit follow-up ("display them before the search is
+  // implemented"): Customers' filter chips must be live from the moment
+  // this panel mounts, not only after the agent clicks "Search" (the
+  // previous, now-removed behavior — see `runSearch`'s own doc comment
+  // below). `customers.addedFilterKeys`/`onAddedFilterKeysChange` is the
+  // SAME shared, lifted state the Desk-tab Customers table's own toolbar
+  // reads (`AgentWorkspaceAdvancedPage.tsx`) — setting it once here is the
+  // same category of shared-state effect the old first-search version
+  // already had, just moved earlier; a `hasSetCustomerFilterKeysRef` guard
+  // keeps it a true one-shot so it doesn't fight an agent who's since
+  // changed it some other way.
+  const hasSetCustomerFilterKeysRef = useRef(false);
+  useEffect(() => {
+    if (hasSetCustomerFilterKeysRef.current) return;
+    hasSetCustomerFilterKeysRef.current = true;
+    customers.onAddedFilterKeysChange(ALL_CUSTOMER_FILTER_KEYS);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const hasSearched = !!searched[activeType];
   const entityIsPopulated = POPULATED_ENTITY_TYPES.includes(activeType);
 
@@ -196,27 +248,20 @@ export function useAdvancedSearchContent({
   // state is empty, so simply flipping `searched[activeType]` to `true` is
   // already correct with no extra "is anything set?" branch needed.
   const runSearch = () => {
-    const firstSearch = !searched[activeType];
     if (activeType === "customers") {
       customers.onSearchChange(draftQuery);
-      // Per explicit request ("all of these filters should be visible as
-      // chips when the search loads"): only on the FIRST reveal — an agent
-      // who's since removed one manually (the "+ Filter" menu still works
-      // normally, per explicit request to leave it alone) shouldn't have it
-      // silently reappear just because they clicked Search again.
-      if (firstSearch) customers.onAddedFilterKeysChange(ALL_CUSTOMER_FILTER_KEYS);
     }
-    // Contacts' own `InteractionsListView` search field is intentionally
-    // left alone here — it manages its own internal search state (unlike
-    // Customers, which was already lifted up to the page for the Desk-tab
-    // Customers view to share) and starts empty on first reveal, same as
-    // opening any other fresh view. This gate only decides WHEN to reveal
-    // it, not what it's pre-filtered to. Its filter chips DO come
-    // pre-populated on that first reveal though — via `defaultAddedFilterKeys`
-    // at its own call site below, not here (that prop only seeds a
-    // `useState` initializer; it wouldn't do anything on a SECOND search,
-    // unlike Customers' own lifted state above, which needed this explicit
-    // `firstSearch` guard instead).
+    // Contacts' own search text lives only in `draftQuery` above (there's
+    // no separate lifted "applied" query for Contacts the way Customers
+    // has `customers.searchQuery`/`onSearchChange`, since nothing else in
+    // this app shares Contacts' search state) — `InteractionsListView`
+    // itself has no search box to apply it to any more once `viewsControl`
+    // is set, so there's nothing further to commit here; clicking "Search"
+    // simply reveals the (now permanently filter-chip-driven) results.
+    // Filter chips for BOTH entity types are already live before this ever
+    // runs (see the mount-time effect / `ALL_INTERACTION_FILTER_KEYS`
+    // constant above) — this only flips `hasSearched` to reveal the actual
+    // list/rows below the chips.
     setSearched((prev) => ({ ...prev, [activeType]: true }));
   };
 
@@ -249,30 +294,81 @@ export function useAdvancedSearchContent({
     // the same way a tab row is, so it supplies that same padding+border
     // itself here instead.
     headerContent: (
-      <div className="flex items-center gap-2 shrink-0 px-4 pt-3 pb-3 border-b border-lyra-border-subtle">
-        <Select
-          options={(Object.keys(ADVANCED_SEARCH_ENTITY_LABELS) as AdvancedSearchEntityType[]).map((key) => ({
-            value: key,
-            label: ADVANCED_SEARCH_ENTITY_LABELS[key],
-          }))}
-          value={activeType}
-          onValueChange={selectEntityType}
-          className="w-[150px] shrink-0"
-        />
+      <div className="shrink-0 border-b border-lyra-border-subtle">
+        <div className="flex items-center gap-2 px-4 pt-3 pb-3">
+          <Select
+            options={(Object.keys(ADVANCED_SEARCH_ENTITY_LABELS) as AdvancedSearchEntityType[]).map((key) => ({
+              value: key,
+              label: ADVANCED_SEARCH_ENTITY_LABELS[key],
+            }))}
+            value={activeType}
+            onValueChange={selectEntityType}
+            className="w-[150px] shrink-0"
+          />
+          {entityIsPopulated && (
+            <>
+              <SearchInput
+                value={draftQuery}
+                onValueChange={setDraftQuery}
+                onKeyDown={handleSearchKeyDown}
+                placeholder="Enter Search Term"
+                aria-label={`Search ${ADVANCED_SEARCH_ENTITY_LABELS[activeType]}`}
+                className="flex-1"
+              />
+              <Button size="md" className="shrink-0" onClick={runSearch}>
+                Search
+              </Button>
+            </>
+          )}
+        </div>
+        {/* Per explicit request ("move the filters above the line (under
+            the select, input, search) and display them before the search is
+            implemented"): every real filter for the active entity, rendered
+            directly via `FilterChip`/`DateRangeFilterChip` — not through
+            either list's own `TableToolbar` (suppressed entirely by
+            `viewsControl` below) — so these are visible and usable the
+            moment the panel opens, whether or not the agent has clicked
+            "Search" yet (`hasSearched` deliberately does not gate this row).
+            No `onRemove` on any chip: unlike a normal "+ Filter"-added chip,
+            these are permanent for as long as this entity type is active —
+            there's no add-menu left to re-add one from if removed. */}
         {entityIsPopulated && (
-          <>
-            <SearchInput
-              value={draftQuery}
-              onValueChange={setDraftQuery}
-              onKeyDown={handleSearchKeyDown}
-              placeholder="Enter Search Term"
-              aria-label={`Search ${ADVANCED_SEARCH_ENTITY_LABELS[activeType]}`}
-              className="flex-1"
-            />
-            <Button size="md" className="shrink-0" onClick={runSearch}>
-              Search
-            </Button>
-          </>
+          <div className="flex items-center gap-2 flex-wrap px-4 pb-3">
+            {activeType === "customers"
+              ? CUSTOMER_FILTER_FIELD_DEFS.map((field) => (
+                  <FilterChip
+                    key={field.key}
+                    label={field.label}
+                    options={CUSTOMER_FILTER_VALUE_OPTIONS[field.key]}
+                    selectedValues={customers.filterValues[field.key] ?? []}
+                    onSelectionChange={(values) =>
+                      customers.onFilterValuesChange({ ...customers.filterValues, [field.key]: values })
+                    }
+                  />
+                ))
+              : (
+                <>
+                  {INTERACTION_HISTORY_FILTER_FIELD_DEFS.map((field) => (
+                    <FilterChip
+                      key={field.key}
+                      label={field.label}
+                      options={INTERACTION_HISTORY_FILTER_VALUE_OPTIONS[field.key]}
+                      selectedValues={interactionFilterValues[field.key] ?? []}
+                      onSelectionChange={(values) =>
+                        setInteractionFilterValues((prev) => ({ ...prev, [field.key]: values }))
+                      }
+                    />
+                  ))}
+                  <DateRangeFilterChip
+                    label="Create Date"
+                    value={interactionCreateDateRangeValue}
+                    onValueChange={setInteractionCreateDateRangeValue}
+                    customValue={interactionCreateDateRangeCustom}
+                    onCustomValueChange={setInteractionCreateDateRangeCustom}
+                  />
+                </>
+              )}
+          </div>
         )}
       </div>
     ),
@@ -337,7 +433,13 @@ export function useAdvancedSearchContent({
         onAddToast={onAddToast}
         onOpenInteraction={onOpenInteraction}
         viewsControl={viewsControl}
-        defaultAddedFilterKeys={ALL_INTERACTION_FILTER_KEYS}
+        addedFilterKeys={ALL_INTERACTION_FILTER_KEYS}
+        filterValues={interactionFilterValues}
+        onFilterValuesChange={setInteractionFilterValues}
+        createDateRangeValue={interactionCreateDateRangeValue}
+        onCreateDateRangeValueChange={setInteractionCreateDateRangeValue}
+        createDateRangeCustom={interactionCreateDateRangeCustom}
+        onCreateDateRangeCustomChange={setInteractionCreateDateRangeCustom}
       />
     ),
   };
