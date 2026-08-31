@@ -122,21 +122,30 @@ export function FiltersDropdownChip({
   // `onPointerDownCapture` on each chip's own wrapper below — fires before
   // the chip's own click handler, so it catches "the user is about to open
   // this one" without needing any cooperation from `FilterChip` itself),
-  // and forces every OTHER chip to remount (via a changed `key`, ordinary
-  // React — not a fork of `FilterChip`) whenever the active one changes,
-  // which resets their own internal `open` state back to its default
-  // `false`. `closeGeneration` — not `activeFilterKey` itself — is what
-  // goes into the non-active chips' keys, and the active chip's OWN key
-  // never varies with either: remounting the chip the user is actively
-  // opening (between its own pointerdown and the click that opens it)
-  // would destroy and recreate its underlying button mid-interaction,
-  // orphaning that pending click before it ever fires.
+  // and forces the PREVIOUSLY-active chip to remount (via a changed `key`,
+  // ordinary React — not a fork of `FilterChip`) whenever a new one
+  // activates, which resets that one chip's own internal `open` state back
+  // to its default `false`.
+  //
+  // `remountKeys` holds a per-field remount counter, bumped ONLY for the
+  // chip that's losing focus — never for the one gaining it. An earlier
+  // version bumped a single shared `closeGeneration` and folded it into
+  // every non-active chip's key including, transiently, the one about to
+  // become active (its key read as "closed" until this state update
+  // landed). That remounted the newly-active chip's own button between its
+  // `pointerdown` and the `click` that follows it, destroying and
+  // recreating the button mid-interaction and orphaning that pending click
+  // — the reported "now i need to click TWICE to open a filter menu" bug.
+  // Only ever touching the OUTGOING chip's counter means the chip a click
+  // is currently in flight on is never remounted by that same click.
   const [activeFilterKey, setActiveFilterKey] = useState<string | null>(null);
-  const [closeGeneration, setCloseGeneration] = useState(0);
+  const [remountKeys, setRemountKeys] = useState<Record<string, number>>({});
   const handleFilterChipActivate = (key: string) => {
     if (key === activeFilterKey) return;
+    if (activeFilterKey !== null) {
+      setRemountKeys((prev) => ({ ...prev, [activeFilterKey]: (prev[activeFilterKey] ?? 0) + 1 }));
+    }
     setActiveFilterKey(key);
-    setCloseGeneration((g) => g + 1);
   };
 
   const activeFilterCount = Object.values(filterValues).filter((v) => v.length > 0).length;
@@ -226,7 +235,7 @@ export function FiltersDropdownChip({
               visibleDefs.map((f) => (
                 <div key={f.key} onPointerDownCapture={() => handleFilterChipActivate(f.key)}>
                   <FilterChip
-                    key={f.key === activeFilterKey ? f.key : `${f.key}-closed-${closeGeneration}`}
+                    key={`${f.key}-${remountKeys[f.key] ?? 0}`}
                     label={f.label}
                     options={f.options}
                     selectedValues={filterValues[f.key] ?? []}
@@ -236,6 +245,7 @@ export function FiltersDropdownChip({
               ))
             )}
           </div>
+          {canScrollDown && <ScrollChevronButton direction="down" onStep={() => scrollListBy(6)} />}
         </div>
       }
     >
