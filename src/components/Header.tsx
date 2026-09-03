@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
 import { CircleHelp, Bell } from "lucide-react";
-import appIcon from "@/assets/app-icon.svg";
 import {
   AppHeader,
   AppName,
@@ -9,7 +8,6 @@ import {
   defaultProfileMenuGroups,
   DashboardIcon,
   AppMenu,
-  CXoneLogo,
   type AppMenuGroup,
 } from "@nicecxone/lyra-ui";
 
@@ -74,13 +72,13 @@ export function Header({ onNavigate, currentPage = "agent-workspace" }: HeaderPr
         <div className="relative">
           <AppName
             ref={triggerRef}
-            icon={<img src={appIcon} alt="Desk" className="h-6 w-6" />}
+            icon={null} // app icon hidden in this test build (kept in agent-next-gen-v2)
             name={currentPage === "outbound" ? "Outbound Engagement" : "Agent Workspace Premium"}
             onClick={() => setMenuOpen((v) => !v)}
           />
           {menuOpen && (
             <div ref={menuRef} className="absolute left-0 top-full z-50 mt-1">
-              <AppMenu groups={appMenuGroups} footer={<CXoneLogo />} />
+              <AppMenu groups={appMenuGroups} />
             </div>
           )}
         </div>

@@ -15,7 +15,6 @@ import { cn } from "@/lib/utils";
 import {
   AppHeader,
   AppNameMenu,
-  CXoneLogo,
   Modal,
   useAgentNotificationsContent,
   Draggable,
@@ -4862,11 +4861,10 @@ export function AgentWorkspaceAdvancedPage({
           // overlap risk instead of a fixed viewport-width guess.
           <div ref={appNameMeasureRef} className="flex items-center">
             <AppNameMenu
-              icon={<img src={appIcon} alt="Agent Workspace 2.0 Advanced" className="h-6 w-6" />}
+              icon={null} // app icon hidden in this test build (kept in agent-next-gen-v2)
               name="Agent Workspace 2.0 Advanced"
               compact={isCompactHeader}
               groups={appMenuGroups}
-              menuFooter={<CXoneLogo />}
               open={appMenuOpen}
               onOpenChange={setAppMenuOpen}
             />
