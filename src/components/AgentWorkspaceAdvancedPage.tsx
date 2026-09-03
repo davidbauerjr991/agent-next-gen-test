@@ -179,7 +179,6 @@ import {
 // explicitly asked).
 import { CollapsedChannelBadge } from "@/components/CollapsedChannelBadge";
 import { AddChannelAdHocButton } from "@/components/agent-next-gen-add-channel-button";
-import appIcon from "@/assets/app-icon.svg";
 import {
   MessageSquare,
   Clock,
@@ -7947,7 +7946,7 @@ export function AgentWorkspaceAdvancedPage({
             later. */}
         <AgentWelcomeMessage
           bare
-          icon={<img src={appIcon} alt="" className="h-8 w-8 shrink-0" />}
+          icon={null} // welcome-message icon hidden in this test build (kept in agent-next-gen-v2)
           title={`Good morning, ${CURRENT_AGENT_FIRST_NAME} ${CURRENT_AGENT_LAST_NAME}`}
           lastLogin={WELCOME_MODAL_LAST_LOGIN}
           onPrimaryClick={handleGoAvailable}
