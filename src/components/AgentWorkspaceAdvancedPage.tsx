@@ -179,6 +179,7 @@ import {
 // explicitly asked).
 import { CollapsedChannelBadge } from "@/components/CollapsedChannelBadge";
 import { AddChannelAdHocButton } from "@/components/agent-next-gen-add-channel-button";
+import { logOutOfSite } from "@/components/SitePasswordGate";
 import {
   MessageSquare,
   Clock,
@@ -5052,7 +5053,14 @@ export function AgentWorkspaceAdvancedPage({
               // passed; see agent-profile.tsx). Same destination/new-tab
               // behavior as the removed icon button.
               onHelpClick={() => window.open("https://help.nicecxone.com/content/agent/cxoneagent/cxoneagent.htm?cshid=CXoneAgent", "_blank", "noopener,noreferrer")}
-              onLogOut={() => onNavigate?.("login")}
+              onLogOut={() => {
+                // Per explicit request: logging out removes the agent from
+                // the password-gate session too, not just this app's own
+                // login state — so returning to the login screen isn't
+                // enough on its own, the site password is required again.
+                logOutOfSite();
+                onNavigate?.("login");
+              }}
               // Per explicit request: this prototype has no real
               // integrations to surface here, so the status menu's
               // "Connected Apps" row (which otherwise always renders, even
@@ -7946,7 +7954,13 @@ export function AgentWorkspaceAdvancedPage({
             later. */}
         <AgentWelcomeMessage
           bare
-          icon={null} // welcome-message icon hidden in this test build (kept in agent-next-gen-v2)
+          // `null` doesn't actually suppress AgentWelcomeMessage's default
+          // icon — it falls back via `icon ?? <img .../>`, and `??` treats
+          // `null` the same as `undefined`, so the smiley mark rendered
+          // anyway. An empty fragment isn't nullish, so it wins the `??`
+          // check and renders nothing. (lyra-ui itself untouched — see
+          // CLAUDE.md's lyra-ui rules — this is an app-side workaround.)
+          icon={<></>} // welcome-message icon hidden in this test build (kept in agent-next-gen-v2)
           title={`Good morning, ${CURRENT_AGENT_FIRST_NAME} ${CURRENT_AGENT_LAST_NAME}`}
           lastLogin={WELCOME_MODAL_LAST_LOGIN}
           onPrimaryClick={handleGoAvailable}

@@ -7,6 +7,7 @@ import { AgentWorkspace2WithDeskPage } from "@/components/AgentWorkspace2WithDes
 import { AgentWorkspaceAdvancedPage } from "@/components/AgentWorkspaceAdvancedPage";
 import { OutboundEngagementPage } from "@/components/OutboundEngagementPage";
 import { LoginPage } from "@/components/LoginPage";
+import { SitePasswordGate } from "@/components/SitePasswordGate";
 
 type Page = "agent-workspace" | "agent" | "agent-with-desk" | "agent-advanced" | "outbound" | "login";
 
@@ -324,74 +325,99 @@ function App() {
     </AiPanel>
   ) : null;
 
+  // `SitePasswordGate` wraps every branch below — including "login" — so
+  // there is no hash a visitor can land on (direct link, back/forward,
+  // typed URL) that renders any real page content before the password is
+  // entered. It reads its own unlock flag from localStorage, so once
+  // unlocked it just renders `children` straight through with no visible
+  // change to the routes/pages themselves.
+
   if (page === "agent") {
-    return <AgentNextGenPage showPageHeader showPanelToggle showInteriorPanel onNavigate={setPage} />;
+    return (
+      <SitePasswordGate>
+        <AgentNextGenPage showPageHeader showPanelToggle showInteriorPanel onNavigate={setPage} />
+      </SitePasswordGate>
+    );
   }
 
   if (page === "agent-with-desk") {
-    return <AgentWorkspace2WithDeskPage showPageHeader showPanelToggle showInteriorPanel onNavigate={setPage} />;
+    return (
+      <SitePasswordGate>
+        <AgentWorkspace2WithDeskPage showPageHeader showPanelToggle showInteriorPanel onNavigate={setPage} />
+      </SitePasswordGate>
+    );
   }
 
   if (page === "agent-advanced") {
-    return <AgentWorkspaceAdvancedPage showPageHeader showPanelToggle showInteriorPanel onNavigate={setPage} />;
+    return (
+      <SitePasswordGate>
+        <AgentWorkspaceAdvancedPage showPageHeader showPanelToggle showInteriorPanel onNavigate={setPage} />
+      </SitePasswordGate>
+    );
   }
 
   if (page === "login") {
-    return <LoginPage onNavigate={setPage} />;
+    return (
+      <SitePasswordGate>
+        <LoginPage onNavigate={setPage} />
+      </SitePasswordGate>
+    );
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden animate-in fade-in-0 duration-500">
-      <Header onNavigate={setPage} currentPage={page} />
-      <div className="flex flex-1 overflow-hidden bg-lyra-bg-surface-shell">
-        <Sidebar open={sidebarOpen} onToggle={handleSidebarToggle} overlay={isNavNarrow} />
+    <SitePasswordGate>
+      <div className="flex h-screen flex-col overflow-hidden animate-in fade-in-0 duration-500">
+        <Header onNavigate={setPage} currentPage={page} />
+        <div className="flex flex-1 overflow-hidden bg-lyra-bg-surface-shell">
+          <Sidebar open={sidebarOpen} onToggle={handleSidebarToggle} overlay={isNavNarrow} />
 
-        <ContentArea ref={containerRef} className="relative min-w-0">
-          <Container className="relative flex flex-1 overflow-hidden">
-            {page === "outbound"
-              ? <OutboundEngagementPage onAiPanelToggle={() => setAiPanelOpen((v) => !v)} />
-              : <DesktopDesignsPage onAiPanelToggle={() => setAiPanelOpen((v) => !v)} />
-            }
-          </Container>
+          <ContentArea ref={containerRef} className="relative min-w-0">
+            <Container className="relative flex flex-1 overflow-hidden">
+              {page === "outbound"
+                ? <OutboundEngagementPage onAiPanelToggle={() => setAiPanelOpen((v) => !v)} />
+                : <DesktopDesignsPage onAiPanelToggle={() => setAiPanelOpen((v) => !v)} />
+              }
+            </Container>
 
-          {/* AI panel — float (fixed position, doesn't take layout space) */}
-          {aiVariant === "float" && aiMounted && (
-            <div
-              style={{
-                ...getAiFloatStyle(),
-                pointerEvents: "none",
-                visibility: aiState === "closed" ? "hidden" : "visible",
-                opacity: aiState === "open" ? 1 : 0,
-                transform: aiState === "open" ? "translateY(0)" : "translateY(-8px)",
-                transition: aiState === "open"
-                  ? "opacity 150ms ease, transform 150ms ease"
-                  : "opacity 100ms ease, transform 100ms ease",
-              }}
-            >
-              <div style={{ pointerEvents: "auto" }}>{aiPanel}</div>
+            {/* AI panel — float (fixed position, doesn't take layout space) */}
+            {aiVariant === "float" && aiMounted && (
+              <div
+                style={{
+                  ...getAiFloatStyle(),
+                  pointerEvents: "none",
+                  visibility: aiState === "closed" ? "hidden" : "visible",
+                  opacity: aiState === "open" ? 1 : 0,
+                  transform: aiState === "open" ? "translateY(0)" : "translateY(-8px)",
+                  transition: aiState === "open"
+                    ? "opacity 150ms ease, transform 150ms ease"
+                    : "opacity 100ms ease, transform 100ms ease",
+                }}
+              >
+                <div style={{ pointerEvents: "auto" }}>{aiPanel}</div>
+              </div>
+            )}
+          </ContentArea>
+
+          {/* AI panel — docked (sibling of the content column so flex layout keeps it in-bounds) */}
+          {aiVariant === "docked" && (
+            <div className="pb-3" style={{
+              width: aiState === "open" ? aiWidth : 0,
+              marginRight: aiState === "open" ? 12 : 0,
+              overflow: "hidden",
+              flexShrink: 0,
+              transition: aiIsResizing ? "none" : "width 250ms cubic-bezier(0.4, 0, 0.2, 1)",
+            }}>
+              <div
+                className="h-full animate-in fade-in-0 duration-150"
+                style={{ width: aiWidth, display: aiState === "open" ? "block" : "none" }}
+              >
+                {aiPanel}
+              </div>
             </div>
           )}
-        </ContentArea>
-
-        {/* AI panel — docked (sibling of the content column so flex layout keeps it in-bounds) */}
-        {aiVariant === "docked" && (
-          <div className="pb-3" style={{
-            width: aiState === "open" ? aiWidth : 0,
-            marginRight: aiState === "open" ? 12 : 0,
-            overflow: "hidden",
-            flexShrink: 0,
-            transition: aiIsResizing ? "none" : "width 250ms cubic-bezier(0.4, 0, 0.2, 1)",
-          }}>
-            <div
-              className="h-full animate-in fade-in-0 duration-150"
-              style={{ width: aiWidth, display: aiState === "open" ? "block" : "none" }}
-            >
-              {aiPanel}
-            </div>
-          </div>
-        )}
+        </div>
       </div>
-    </div>
+    </SitePasswordGate>
   );
 }
 

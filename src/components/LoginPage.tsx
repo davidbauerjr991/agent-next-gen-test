@@ -21,6 +21,14 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
       <LoginCard
         appName="Agent Workspace"
         launchButtonLabel="Launch"
+        // Per request: hide the smiley/app-icon mark in the login modal's
+        // header too. LoginCard's `headerIcon` falls back via
+        // `appIcon ?? <img .../>`, and `??` treats `null` the same as
+        // `undefined` — so only an explicit non-nullish empty node (not
+        // `null`, and not simply omitting the prop) actually suppresses it.
+        // See the same fix on the welcome modal's `icon` prop in the
+        // workspace pages. lyra-ui itself is untouched.
+        appIcon={<></>}
         onLaunch={() => onNavigate?.("agent")}
       />
     </div>
