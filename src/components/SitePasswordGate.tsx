@@ -15,9 +15,15 @@ import { Container, PasswordInput, Button } from "@nicecxone/lyra-ui";
    tools; there's no backend to actually authenticate against. Good
    enough to stop someone from stumbling onto the prototype, not to
    protect anything sensitive. To rotate the password, just edit the
-   constant below. */
+   constant below.
 
-const SITE_PASSWORD = "4!bnFg*FK3zNfx";
+   Per explicit request: the unlock is remembered only for the current
+   browser session — `sessionStorage`, not `localStorage`. Closing the
+   window (or the tab) drops it, so reopening the site prompts for the
+   password again; ordinary reloads and in-app navigation within that
+   same window/tab stay unlocked, same as before. */
+
+const SITE_PASSWORD = "9*K5@Fc-Ef5#Kp";
 
 const UNLOCK_STORAGE_KEY = "lyra_agent_next_gen_test_unlocked";
 
@@ -30,14 +36,14 @@ const UNLOCK_STORAGE_KEY = "lyra_agent_next_gen_test_unlocked";
 // position in the tree, React treats it as the SAME component instance
 // across ordinary page navigation — it does not remount, which is exactly
 // what keeps an already-unlocked visitor from being re-prompted every time
-// they switch pages. That also means clearing localStorage alone wouldn't
+// they switch pages. That also means clearing sessionStorage alone wouldn't
 // visibly re-lock anything until a future full reload; the event tells the
 // already-mounted instance to flip back to locked right now.
 const LOCK_EVENT = "lyra-agent-next-gen-test:lock";
 
 function readUnlocked(): boolean {
   try {
-    return window.localStorage.getItem(UNLOCK_STORAGE_KEY) === "true";
+    return window.sessionStorage.getItem(UNLOCK_STORAGE_KEY) === "true";
   } catch {
     // Storage unavailable (private browsing, locked-down browser, etc.) —
     // fail closed rather than throwing; the gate just re-prompts every load.
@@ -47,7 +53,7 @@ function readUnlocked(): boolean {
 
 function persistUnlocked() {
   try {
-    window.localStorage.setItem(UNLOCK_STORAGE_KEY, "true");
+    window.sessionStorage.setItem(UNLOCK_STORAGE_KEY, "true");
   } catch {
     // Can't persist — the visitor still gets through for this page load,
     // they'll just see the gate again next time.
@@ -57,14 +63,14 @@ function persistUnlocked() {
 /**
  * Call this from the agent's log-out handler (alongside navigating back to
  * the login page) to remove them from the password-gate session too: clears
- * the persisted unlock flag and tells the currently-mounted
+ * the session-persisted unlock flag and tells the currently-mounted
  * `SitePasswordGate` to re-lock immediately, so the password prompt is what
  * they see next — logging out doesn't just return to the login screen, it
  * exits the gate's unlocked session entirely.
  */
 export function logOutOfSite() {
   try {
-    window.localStorage.removeItem(UNLOCK_STORAGE_KEY);
+    window.sessionStorage.removeItem(UNLOCK_STORAGE_KEY);
   } catch {
     // Nothing persisted to clear — the in-memory relock below still fires.
   }
