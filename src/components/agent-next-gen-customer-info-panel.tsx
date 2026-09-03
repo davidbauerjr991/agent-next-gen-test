@@ -63,7 +63,7 @@ import { type ContactHistoryStatusVariant } from "@/components/agent-next-gen-co
 import { OUTBOUND_AGENTS } from "@/components/agent-next-gen-outbound-data";
 import { MARCUS_WEBB_CUSTOMER_ID } from "@/components/agent-next-gen-marcus-webb-scenario";
 import { OUTCOME_TAG_OPTIONS } from "@/components/agent-next-gen-transcript";
-import { type CustomerListRecord, CustomerAddChannelButton } from "@/components/agent-next-gen-customers-table";
+import { type CustomerListRecord, CUSTOMER_LIST_RECORDS, CustomerAddChannelButton } from "@/components/agent-next-gen-customers-table";
 import { cn } from "@/lib/utils";
 import {
   type LucideIcon,
@@ -252,6 +252,39 @@ export function buildCustomerInfoFields(
     { label: "State", value: state },
     { label: "Zip Code", value: zipCode },
   ];
+}
+
+/** Resolves this interaction's own customer database row, if it has one —
+ *  same identity space `buildCustomerInfoFields`'s own `dbRecord` lookup
+ *  just above already relies on (`recordId` === `Interaction.customerId` ===
+ *  `CustomerListRecord.contactNumber`, all sourced from `CREATE_NEW_CUSTOMERS`
+ *  — see `CUSTOMER_LIST_RECORDS`'s own doc comment, agent-next-gen-customers-
+ *  table.tsx, for that 1:1 mapping).
+ *
+ *  Per explicit request ("put the customer available channels in the
+ *  Customer Overview in the same row as the edit (like in the customer
+ *  table in Premium) for all Customer Information panels") —
+ *  `CustomerAddChannelButton`'s wide mode (rendered by
+ *  `CustomerInformationPanelBody`'s own Customer Overview top row) already
+ *  IS that exact available-channels icon row, one button per channel the
+ *  customer's own `CustomerListRecord.channels` lists, same component the
+ *  Customers table itself renders per row. It was previously only ever fed
+ *  a real `row` by the two Customers-table-ORIGINATED consumers
+ *  (`CustomerRowInfoPanel`/`CustomerFullScreenTabContent`, which already
+ *  carry the clicked row directly) — `CustomerInformationSidePanel` and
+ *  `CustomerInfoHoverPreview` never called this at all, so their own top
+ *  row only ever showed Edit, with no channel icons next to it, EVEN for a
+ *  real customer with real known channels on file. Not a data gap, just a
+ *  lookup nobody had wired up yet for those two consumers — this is that
+ *  lookup, shared so both derive it the same way `buildCustomerInfoFields`
+ *  already does for its own fields.
+ *
+ *  `null` for an ad-hoc/unknown contact with no matching database record —
+ *  `CustomerAddChannelButton` already renders nothing at all for a `null`
+ *  row (see that component's own doc comment), so this is a safe default,
+ *  not a special case callers need to branch on themselves. */
+export function resolveCustomerListRecord(recordId: string): CustomerListRecord | null {
+  return CUSTOMER_LIST_RECORDS.find((r) => r.contactNumber === recordId) ?? null;
 }
 
 // "Latest Interaction" summary shown on the Overview tab, below the
@@ -452,33 +485,18 @@ export function buildCopilotSummary(customerName: string | undefined, recordId: 
   };
 }
 
-// Placeholder tab set (per reference screenshot). "Copilot" (per explicit
-// follow-up request) is FIRST in this list — the actual leftmost tab
-// button whenever it's showing at all — per a still-later explicit request
-// ("copilot be the first tab displayed"). This is purely a display-ORDER
-// change: the panel still opens on "Overview" by default everywhere
-// (`activeTab`'s own initializer below explicitly resolves
-// `CUSTOMER_PANEL_TABS.indexOf("Overview")` rather than a hardcoded `0`,
-// specifically so reordering this array never silently changes which tab
-// the panel actually lands on) — Copilot only becomes the tab an agent is
-// ALREADY looking at if they click it themselves. Whether Copilot actually
-// SHOWS as a tab button at all still depends entirely on `copilotAvailable`
-// (`CustomerInformationSidePanel`/`CustomerInfoHoverPreview` — see that
-// const's own doc comment on each: unavailable until the customer has
-// actually responded or the conversation was already customer-initiated),
-// unaffected by this reorder — a still-unavailable Copilot is filtered out
-// of `visibleTabs` same as always, leaving Overview as the actual leftmost
-// VISIBLE tab until Copilot has something to show. Per a later explicit
-// follow-up request Copilot was briefly hidden entirely (`copilotAvailable`
-// hardcoded `false`), then re-enabled per a still-later explicit request
-// ("re-add Copilot as one of the tabs") back to its original conditional
-// gating. The "jump to Copilot automatically when the customer replies"
-// behavior a much earlier version of this list's ordering used to set up
-// for stays removed, though (that auto-jump wiring —
-// `copilotFocusSignal`/`copilotFocusRequest` — was reported as annoying and
-// has been removed from this component and all 3 page files, not merely
-// hidden; it isn't reintroduced by this reorder either — Copilot moving to
-// the front changes where its tab BUTTON sits, not which tab is active).
+// Placeholder tab set (per reference screenshot). "Copilot" is still
+// listed FIRST here for history's sake (its display-order journey: added,
+// reordered to the front, briefly hidden entirely, re-enabled, made
+// conditionally available), but per the latest explicit request ("stop
+// launching copilot - hide it completely") it is now unconditionally
+// excluded from `visibleTabs` everywhere (`CustomerInformationSidePanel`/
+// `CustomerInfoHoverPreview`/`CustomerRowInfoPanel`/`AllContactsProfileView`
+// — see each one's own `visibleTabs` doc comment), full stop, regardless
+// of its position in this array or `copilotAvailable`-style gating (which
+// no longer exists) — this array's own order no longer matters for it at
+// all. `buildCopilotSummary`'s underlying recap text didn't go away,
+// though — see `ContactOverview`'s `journeySummary` prop for its new home.
 //
 // "Contacts" (this customer's own session history — was a separate,
 // independently-selectable "Customer History" tab in the record header,
@@ -500,11 +518,11 @@ export type CustomerPanelTabLabel = (typeof CUSTOMER_PANEL_TABS)[number];
 // tab in that app; Directory/Tasks/Accounts/Tickets have no
 // real content behind them, same "not ready to show yet" reasoning other
 // stubbed surfaces in this app already follow). "Copilot" is still listed
-// here — its own ADDITIONAL gating (hidden until the customer actually
-// responds — see `copilotAvailable` on `CustomerInformationSidePanel`/
-// `CustomerInfoHoverPreview` below) is separate from which tabs a given
-// consumer supports at all. Agent Workspace 2.0 With Desk is unaffected —
-// its own call sites pass the full `CUSTOMER_PANEL_TABS` list unchanged.
+// here too, same as `CUSTOMER_PANEL_TABS` above — it's unconditionally
+// excluded from `visibleTabs` regardless of whether a given consumer's own
+// `tabs` prop happens to include it. Agent Workspace 2.0 With Desk is
+// unaffected — its own call sites pass the full `CUSTOMER_PANEL_TABS` list
+// unchanged.
 export const AGENT_WORKSPACE_CUSTOMER_PANEL_TABS: CustomerPanelTabLabel[] = ["Overview", "Copilot", "Detail", "Notes"];
 
 // Temporarily hides the Overview tab's "Ask about this customer..."
@@ -1216,6 +1234,10 @@ export function CustomerHistorySessionDetailPanel({
       side="right"
       open={entry !== null}
       onClose={onClose}
+      // `PanelRightClose` — same "closing a docked right-side panel" glyph
+      // this file's other `InteriorPanel` instance already uses (below),
+      // instead of `ContainerHeader`'s generic default `X`.
+      closeIcon={<PanelRightClose className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />}
       // `z-[3]` — overrides `InteriorPanel`'s own default `z-[5]` (via
       // `cn()`'s `tailwind-merge` dedup, same "consumer className overrides
       // the internal default" mechanism `CustomerInformationSidePanel`'s own
@@ -2048,6 +2070,8 @@ export function CustomerInformationPanelBody({
   overviewEditing = false,
   onOverviewEditingChange = () => {},
   allowOverviewEdit,
+  row,
+  onStartInteraction,
 }: {
   activeTab: number;
   /** Overview's "Open Conversation" deep link (Latest Interaction
@@ -2153,6 +2177,28 @@ export function CustomerInformationPanelBody({
    *  since it's a transient mouse-hover popover with no footer of its own
    *  to commit or cancel an edit through. */
   allowOverviewEdit?: boolean;
+  /** Per explicit request ("move the contact icon buttons into the
+   *  customer overview and put them next to the edit button in a row
+   *  above the other information") — the row this customer came from,
+   *  feeding `CustomerAddChannelButton` (always its "wide" one-button-
+   *  per-channel shape here, matching `CustomerFullScreenTabContent`'s
+   *  own prior header usage) so the channel launch buttons live inside
+   *  this card's own top row instead of the panel/tab header. `undefined`/
+   *  `null` for every consumer with no such row to launch a channel
+   *  from — `CustomerInformationSidePanel` (an already-open interaction,
+   *  never had these buttons at all) and `CustomerInfoHoverPreview`
+   *  (never offered `allowOverviewEdit` either) simply omit this, and the
+   *  new top row renders with no channel buttons in it (just the Edit
+   *  button, if `allowOverviewEdit` is set) — same as `CustomerAddChannelButton`
+   *  itself already does for a `null` row (see that component's own doc
+   *  comment). */
+  row?: CustomerListRecord | null;
+  /** Required whenever `row` is a real (non-null) record — same signature
+   *  `CustomerAddChannelButton` itself takes, just forwarded straight
+   *  through. Optional here (not required outright) only so a consumer
+   *  that never passes `row` doesn't also have to pass a never-called
+   *  handler. */
+  onStartInteraction?: (contact: CreateNewOutboundContact, channel: ChannelType, phone: string, skillId: string) => void;
 }) {
   // Controlled (not `defaultValue`, unlike Latest Interaction beside it)
   // specifically so the stacked column below knows whether Latest Note
@@ -2389,6 +2435,56 @@ export function CustomerInformationPanelBody({
                     title: "Customer Overview",
                     content: (
                       <div className="flex flex-col gap-3">
+                        {/* Channel launch buttons + Edit, together in one row
+                            above the field list — per explicit request
+                            ("move the contact icon buttons into the customer
+                            overview and put them next to the edit button in
+                            a row above the other information"). Previously
+                            the channel buttons lived in the panel/tab
+                            header's own `headerActions`/`actions`
+                            (`CustomerRowInfoPanel`/`CustomerFullScreenTabContent`
+                            — see each call site's own doc comment on `row`/
+                            `onStartInteraction` below) and Edit sat alone
+                            below the LAST field row; both now share this one
+                            row instead. Only rendered while NOT editing —
+                            same reasoning the Edit button itself already
+                            had (see `allowOverviewEdit`'s own doc comment):
+                            once editing starts, Save/Cancel in the footer
+                            are the only way back out, and launching a new
+                            channel mid-edit would be a confusing detour.
+                            `justify-between` splits the channel buttons
+                            (left) from Edit (right) — matches the reference
+                            screenshot's layout. */}
+                        {((row && !overviewEditing) || (allowOverviewEdit && !overviewEditing)) && (
+                          <div className="flex items-center justify-between gap-2">
+                            {/* `gap-1` (4px) between the channel buttons
+                                themselves — per explicit request ("make the
+                                gap between the buttons 4px") — distinct from
+                                the wrapping row's own `gap-2`/`justify-
+                                between`, which is the (much larger) space
+                                between this whole button cluster and Edit. */}
+                            <div className="flex items-center gap-1">
+                              {row && (
+                                <CustomerAddChannelButton
+                                  row={row}
+                                  isNarrow={false}
+                                  onStartInteraction={onStartInteraction!}
+                                />
+                              )}
+                            </div>
+                            {allowOverviewEdit && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => onOverviewEditingChange(true)}
+                                className="gap-1.5"
+                              >
+                                <Pencil className="h-4 w-4" strokeWidth={1.5} aria-hidden="true" />
+                                Edit
+                              </Button>
+                            )}
+                          </div>
+                        )}
                         {draft.overviewFields.map((field, index) => (
                           <div key={field.label} className="flex flex-col gap-3">
                             {overviewEditing ? (
@@ -2465,24 +2561,6 @@ export function CustomerInformationPanelBody({
                             {!overviewEditing && index < draft.overviewFields.length - 1 && <Separator />}
                           </div>
                         ))}
-                        {/* Enter-edit-mode action — sits below the last field row,
-                            left-aligned to match the field rows' own start edge.
-                            Only rendered while NOT editing (one-way trigger into
-                            edit mode); Save/Cancel in the footer are the only way
-                            back out, see CustomerRecordSaveFooter. */}
-                        {allowOverviewEdit && !overviewEditing && (
-                          <div className="flex justify-start">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => onOverviewEditingChange(true)}
-                              className="gap-1.5"
-                            >
-                              <Pencil className="h-4 w-4" strokeWidth={1.5} aria-hidden="true" />
-                              Edit
-                            </Button>
-                          </div>
-                        )}
                       </div>
                     ),
                   },
@@ -2816,6 +2894,7 @@ export function CustomerInfoHoverPreview({
   onOverviewEditingChange,
   matchState,
   copilotExtra,
+  onStartInteraction,
 }: {
   customerName?: string;
   recordId: string;
@@ -2887,48 +2966,36 @@ export function CustomerInfoHoverPreview({
    *  every interaction that has no scripted extra content, same default
    *  every other consumer gets. */
   copilotExtra?: React.ReactNode;
+  /** Per explicit request ("put the customer available channels in the
+   *  Customer Overview in the same row as the edit... for all Customer
+   *  Information panels... make sure this is reflected in the hover panel
+   *  as well") — feeds `CustomerInformationPanelBody`'s own `row`/
+   *  `onStartInteraction` props exactly like `CustomerInformationSidePanel`
+   *  does (see that prop's own doc comment); `row` itself is derived from
+   *  `recordId` right below via `resolveCustomerListRecord`, same as the
+   *  docked panel. */
+  onStartInteraction: (contact: CreateNewOutboundContact, channel: ChannelType, phone: string, skillId: string) => void;
 }) {
   const latestInteraction = useMemo(
     () => buildLatestInteraction(customerName, recordId),
     [customerName, recordId]
   );
   const latestNote = useMemo(() => buildLatestNote(customerName, recordId), [customerName, recordId]);
+  // See `resolveCustomerListRecord`'s own doc comment above — same lookup
+  // `CustomerInformationSidePanel` performs, so the hover preview's own
+  // Customer Overview row shows the identical channel icons the docked
+  // panel does for this same interaction.
+  const row = useMemo(() => resolveCustomerListRecord(recordId), [recordId]);
   const copilotSummary = useMemo(() => buildCopilotSummary(customerName, recordId), [customerName, recordId]);
-  // Re-enabled per explicit follow-up request ("re-add Copilot as one of
-  // the tabs") — back to its original conditional gating rather than the
-  // hardcoded `false` this had for a while: a `startedFresh` (blank-slate,
-  // agent-initiated) interaction hasn't had the customer say anything yet,
-  // so Copilot has nothing to summarize; `lastCustomerMessageTick` covers a
-  // genuinely fresh outbound interaction whose customer HAS since replied
-  // within this session (set by `handleSendMessage`'s simulated reply — see
-  // `Thread.lastCustomerMessageTick`'s own doc comment). Either one is
-  // enough — this only needs ONE channel to have heard from the customer,
-  // not all of them. Note: the separate "jump to Copilot automatically the
-  // moment the customer replies" behavior (the old `copilotFocusSignal`
-  // prop) stays removed — that specific auto-jump, not the tab's mere
-  // existence, was what got reported as annoying, and it isn't re-added
-  // here. See `CustomerInformationSidePanel`'s identical computation on its
-  // own matching const, just below in this file, for the shared reasoning.
-  const copilotAvailable = !startedFresh || channels.some((c) => c.lastCustomerMessageTick !== undefined);
-  // Lands on "Copilot" by default whenever it's available (per explicit
-  // follow-up request: "copilot be the first tab displayed") — lyra-ui's
-  // `TabList overflowMenu` collapses to "active tab + N More" the moment
-  // this panel is too narrow to fit every tab (the common case here), so
-  // simply reordering `CUSTOMER_PANEL_TABS` to put "Copilot" first wasn't
-  // enough on its own: that collapsed row always shows the ACTIVE tab, not
-  // array index 0 (confirmed live — a reorder alone left "Overview" as the
-  // one visible pinned tab, with Copilot buried inside "N More", since
-  // Overview was still what actually had `active` set). Falls back to
-  // "Overview" whenever Copilot isn't available yet (still gated by
-  // `copilotAvailable` above — same "hasn't the customer said anything
-  // yet" reasoning), so an agent opening a still-`startedFresh` interaction
-  // keeps landing on Overview like before this change. See
-  // `CustomerInformationSidePanel`'s identical initializer, just below in
-  // this file, for the shared reasoning.
-  const [activeTab, setActiveTab] = useState(() =>
-    CUSTOMER_PANEL_TABS.indexOf(copilotAvailable ? "Copilot" : "Overview")
-  );
-  const visibleTabs = tabs.filter((t) => t !== "Copilot" || copilotAvailable);
+  // Per explicit request ("stop launching copilot - hide it completely")
+  // — Copilot is now unconditionally excluded below (`visibleTabs`), same
+  // as `CustomerInformationSidePanel`'s identical fix just below in this
+  // file (see that component's own doc comment for the full reasoning).
+  // `copilotSummary`/`buildCopilotSummary` above stay computed regardless
+  // — `ContactOverview`'s own `journeySummary` prop now reuses that exact
+  // recap in its new home.
+  const [activeTab, setActiveTab] = useState(() => CUSTOMER_PANEL_TABS.indexOf("Overview"));
+  const visibleTabs = tabs.filter((t) => t !== "Copilot");
   // See `buildCustomerMatchSubhead`'s own doc comment — shared with
   // `CustomerInformationSidePanel` so the docked panel and this hover
   // preview never disagree on the match count/wording or which list is
@@ -3066,6 +3133,13 @@ export function CustomerInfoHoverPreview({
             allowOverviewEdit
             overviewEditing={overviewEditing}
             onOverviewEditingChange={onOverviewEditingChange}
+            // Per explicit request ("...make sure this is reflected in the
+            // hover panel as well") — same `row`/`onStartInteraction` wiring
+            // as `CustomerInformationSidePanel`'s own identical call site;
+            // see this component's own `row` const above for how it's
+            // derived.
+            row={row}
+            onStartInteraction={onStartInteraction}
           />
         )}
       </div>
@@ -3400,8 +3474,9 @@ export function CustomerInformationSidePanel({
   overviewEditing,
   onOverviewEditingChange,
   matchState,
-  onCopilotFirstAvailable,
   copilotExtra,
+  onStartInteraction,
+  focusTabOverride,
 }: {
   open: boolean;
   pinned: boolean;
@@ -3429,14 +3504,12 @@ export function CustomerInformationSidePanel({
   channels: Thread[];
   /** This interaction's own `Interaction.startedFresh` — see that
    *  field's own doc comment (agent-next-gen-interaction-dashboard.tsx).
-   *  Feeds `copilotAvailable` below: a `startedFresh` (blank-slate, agent-
-   *  initiated) interaction hasn't had the customer say anything yet, so
-   *  Copilot has nothing to summarize; anything else (a notification-
-   *  opened case, a reopened history entry, an interaction opened from the
-   *  Search panel's Contacts list, the page's own initially-seeded active
-   *  call) is
-   *  already an existing, already-routed conversation with real prior
-   *  history, so Copilot is available immediately for those. */
+   *  Previously fed the now-removed `copilotAvailable` gate ("hasn't the
+   *  customer said anything yet, so Copilot has nothing to summarize") —
+   *  Copilot itself is unconditionally hidden now (per explicit request,
+   *  see `visibleTabs`' own doc comment below), so this prop currently has
+   *  no live consumer in this component; kept as-is (not removed) since
+   *  every call site already passes it and it costs nothing to keep. */
   startedFresh?: boolean;
   /**
    * Which tabs this panel supports at all, in order — per explicit
@@ -3513,22 +3586,34 @@ export function CustomerInformationSidePanel({
     onBackToSearch: () => void;
     onSaveNewCustomer: () => void;
   };
-  /** Per explicit follow-up request ("only open the customer information
-   *  automatically if a NEW message appears in the copilot window") — the
-   *  caller's hook for revealing a currently-CLOSED docked panel. Fired
-   *  from the SAME false→true `copilotAvailable` edge that already drives
-   *  the "jump to Copilot" `useEffect` just below (see that effect's own
-   *  doc comment) — i.e. the single moment Copilot first has something new
-   *  to show for this interaction, not on every later customer reply on an
-   *  already-`copilotAvailable` conversation (an earlier version of this
-   *  feature opened the panel on EVERY reply, which was too broad — this
-   *  narrows it to match the effect it's paired with). All 3 page files
-   *  wire it to their own `setSidePanelOpen(true)`. */
-  onCopilotFirstAvailable?: () => void;
   /** Passed straight through to `CustomerInformationPanelBody`'s own same-
    *  named prop — see that prop's own doc comment. `undefined` for every
    *  interaction except the Marcus Webb scripted scenario. */
   copilotExtra?: React.ReactNode;
+  /** Per explicit request ("put the customer available channels in the
+   *  Customer Overview in the same row as the edit... for all Customer
+   *  Information panels") — feeds `CustomerInformationPanelBody`'s own
+   *  `row`/`onStartInteraction` props (see `resolveCustomerListRecord`'s own
+   *  doc comment above for how `row` itself gets derived from `recordId`
+   *  right below). Every real page-file call site already has a working
+   *  `handleStartCall`-backed handler of this exact shape — see
+   *  `CustomerRowInfoPanel`'s own identically-named, non-optional prop for
+   *  the established wiring pattern this mirrors. */
+  onStartInteraction: (contact: CreateNewOutboundContact, channel: ChannelType, phone: string, skillId: string) => void;
+  /**
+   * External one-shot "jump to this tab" command — for the Contact
+   * Overview's own "View customer info"/"View interaction history" links
+   * (`ContactOverview`'s `onViewCustomerInfo`/`onViewInteractionHistory`,
+   * wired at each page file's call site), which need to command this
+   * panel's internally-owned `activeTab` from outside without making it a
+   * fully controlled prop (this component's own tab-button clicks still
+   * just call `setActiveTab` directly, same as always). Same nonce/version
+   * pattern as `InteractionNavItem`'s own `channelsExpandedOverride` (see
+   * that prop's doc comment, interaction-nav-item.tsx) — `version` is a
+   * nonce to re-apply `tab` even if it's identical to the last time (e.g.
+   * clicking "View customer info" twice in a row with nothing else
+   * changing `activeTab` in between). */
+  focusTabOverride?: { tab: CustomerPanelTabLabel; version: number };
 }) {
   const latestInteraction = useMemo(
     () => buildLatestInteraction(customerName, recordId),
@@ -3538,99 +3623,40 @@ export function CustomerInformationSidePanel({
     () => buildLatestNote(customerName, recordId),
     [customerName, recordId]
   );
+  // See `resolveCustomerListRecord`'s own doc comment above for why this
+  // panel — an already-open interaction, never fed a `row` from a
+  // Customers-table row click — still has one to look up.
+  const row = useMemo(() => resolveCustomerListRecord(recordId), [recordId]);
   const copilotSummary = useMemo(() => buildCopilotSummary(customerName, recordId), [customerName, recordId]);
-  // Re-enabled per explicit follow-up request ("re-add Copilot as one of
-  // the tabs") — back to its original conditional gating rather than the
-  // hardcoded `false` this had for a while. See `startedFresh`'s own doc
-  // comment above for the "hasn't the customer said anything yet" logic;
-  // `lastCustomerMessageTick` covers a genuinely fresh outbound interaction
-  // whose customer HAS since replied within this session (set by
-  // `handleSendMessage`'s simulated reply — see `Thread.
-  // lastCustomerMessageTick`'s own doc comment). Either one is enough —
-  // this only needs ONE channel to have heard from the customer, not all
-  // of them. Note: the separate "jump to Copilot automatically the moment
-  // the customer replies" behavior (the old `copilotFocusSignal` prop,
-  // removed from this component and all 3 page files) stays removed —
-  // that specific auto-jump, not the tab's mere existence, was what got
-  // reported as annoying, and it isn't re-added here.
-  const copilotAvailable = !startedFresh || channels.some((c) => c.lastCustomerMessageTick !== undefined);
-  // Lands on "Copilot" by default whenever it's available (per explicit
-  // follow-up request: "copilot be the first tab displayed") — lyra-ui's
-  // `TabList overflowMenu` collapses to "active tab + N More" the moment
-  // this panel is too narrow to fit every tab (the common case here), so
-  // simply reordering `CUSTOMER_PANEL_TABS` to put "Copilot" first wasn't
-  // enough on its own: that collapsed row always shows the ACTIVE tab, not
-  // array index 0 (confirmed live — a reorder alone left "Overview" as the
-  // one visible pinned tab, with Copilot buried inside "N More", since
-  // Overview was still what actually had `active` set). Falls back to
-  // "Overview" whenever Copilot isn't available yet (still gated by
-  // `copilotAvailable` above — same "hasn't the customer said anything
-  // yet" reasoning), so an agent opening a still-`startedFresh` interaction
-  // keeps landing on Overview like before this change. See
-  // `CustomerInfoHoverPreview`'s identical initializer, just above in this
-  // file, for the shared reasoning.
-  const [activeTab, setActiveTab] = useState(() =>
-    CUSTOMER_PANEL_TABS.indexOf(copilotAvailable ? "Copilot" : "Overview")
-  );
-  // Tracks `copilotAvailable`'s PRIOR render value — see the false→true
-  // "jump to Copilot" `useEffect`, a bit further below, that reads this.
-  // Seeded from the current value (not `false`) specifically so a panel
-  // that mounts with Copilot ALREADY available doesn't treat that as a
-  // false→true edge and fire a redundant jump on top of what the
-  // `useState` initializer just above already landed on directly.
-  const prevCopilotAvailableRef = useRef(copilotAvailable);
-  // The tabs this panel's own header actually renders — `tabs` (this
-  // consumer's configured support list) minus "Copilot" specifically while
-  // it isn't available yet. Everything else in `tabs` always shows;
-  // Copilot is the only conditionally-gated one.
-  const visibleTabs = tabs.filter((t) => t !== "Copilot" || copilotAvailable);
-
-  // Falls back to Overview if the currently active tab is Copilot but the
-  // interaction THIS panel is now showing doesn't have Copilot available
-  // (e.g. the agent was reading Copilot for a different, already-replied-
-  // to interaction, then switched via the left nav to a freshly-launched
-  // one nobody has responded to yet) — without this, `activeTab` would
-  // keep pointing at Copilot's index even though its own tab button just
-  // disappeared from `visibleTabs`, leaving the panel showing Copilot's
-  // content with no tab looking selected in the header. Keyed on
-  // `recordId` (a new interaction being shown), not `copilotAvailable`
-  // itself — this half is a landing-state correction for switching TO a
-  // different interaction, not the live mid-conversation jump the second
-  // effect below handles.
-  useEffect(() => {
-    if (!copilotAvailable && activeTab === CUSTOMER_PANEL_TABS.indexOf("Copilot")) {
-      setActiveTab(CUSTOMER_PANEL_TABS.indexOf("Overview"));
+  // Per explicit request ("stop launching copilot - hide it completely"):
+  // Copilot is now unconditionally excluded below (`visibleTabs`), same
+  // treatment `CustomerRowInfoPanel`/`AllContactsProfileView` already give
+  // it (see either one's own `visibleTabs` doc comment) — this panel was
+  // the last of the three still showing it conditionally
+  // (`copilotAvailable`, previously). `copilotSummary`/`buildCopilotSummary`
+  // above stay computed regardless — `ContactOverview`'s own
+  // `journeySummary` prop (this file's page-level callers, not this
+  // component) now reuses that exact same deterministic recap in its new
+  // home, so the underlying data still has a real consumer even with the
+  // Copilot tab itself gone.
+  const [activeTab, setActiveTab] = useState(() => CUSTOMER_PANEL_TABS.indexOf("Overview"));
+  // Applies `focusTabOverride` (see its own doc comment above) the moment
+  // its `version` changes — same "adjust state during render, not inside a
+  // `useEffect`" pattern `InteractionNavItem`'s own
+  // `channelsExpandedOverride` uses (interaction-nav-item.tsx), so a
+  // Contact Overview link click jumps this panel's tab in the SAME render
+  // the new version arrives in rather than one render late.
+  const lastAppliedFocusTabVersionRef = useRef(focusTabOverride?.version);
+  if (focusTabOverride && focusTabOverride.version !== lastAppliedFocusTabVersionRef.current) {
+    lastAppliedFocusTabVersionRef.current = focusTabOverride.version;
+    const targetIndex = CUSTOMER_PANEL_TABS.indexOf(focusTabOverride.tab);
+    if (targetIndex !== -1 && activeTab !== targetIndex) {
+      setActiveTab(targetIndex);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recordId]);
-  // Jumps TO "Copilot" the moment it first becomes available during an
-  // already-mounted interaction — confirmed necessary live: the lazy
-  // `useState` initializer above only decides where the panel LANDS at
-  // mount time, so a `startedFresh` interaction (Copilot unavailable,
-  // initializer picks "Overview") that the customer then replies to mid-
-  // session never re-evaluates that initial choice on its own —
-  // `copilotAvailable` flips to `true`, Copilot appears in `visibleTabs`,
-  // but `activeTab` just stays wherever it already was, leaving Copilot
-  // sitting unopened behind "N More" exactly when it has something to show
-  // for the first time. `prevCopilotAvailableRef` tracks the PRIOR
-  // render's value so this only fires on the actual false→true edge, not
-  // on every render while already `true` — deliberately narrower than the
-  // old `copilotFocusSignal` auto-jump (removed in §71 for firing
-  // repeatedly and stealing focus mid-conversation): this fires exactly
-  // once per interaction, at the single moment Copilot has anything to
-  // summarize for the first time, not on every subsequent customer
-  // message after that. `onCopilotFirstAvailable` (see that prop's own
-  // doc comment) piggybacks on this exact same edge, for the exact same
-  // "only the first time, not every later reply" reason — the caller uses
-  // it to reveal a currently-closed docked panel.
-  useEffect(() => {
-    if (copilotAvailable && !prevCopilotAvailableRef.current) {
-      setActiveTab(CUSTOMER_PANEL_TABS.indexOf("Copilot"));
-      onCopilotFirstAvailable?.();
-    }
-    prevCopilotAvailableRef.current = copilotAvailable;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [copilotAvailable]);
+  }
+  // `tabs` (this consumer's configured support list) minus "Copilot"
+  // unconditionally now — see this block's own top comment.
+  const visibleTabs = tabs.filter((t) => t !== "Copilot");
 
   // Never render wider than the parent Container actually is, docked or
   // full-screen — see `containerWidth`'s own doc comment. `Math.max(0, ...)`
@@ -3935,6 +3961,16 @@ export function CustomerInformationSidePanel({
           // Per explicit request — this is one of the two real panels, so it
           // offers the Customer Overview edit button.
           allowOverviewEdit
+          // Per explicit request ("put the customer available channels in
+          // the Customer Overview in the same row as the edit... for all
+          // Customer Information panels") — `row` (derived above, see
+          // `resolveCustomerListRecord`'s own doc comment) feeds the same
+          // `CustomerAddChannelButton` channel-icon row `CustomerRowInfoPanel`/
+          // `CustomerFullScreenTabContent` already show; `null` (an ad-hoc/
+          // unknown contact) simply renders no channel icons, same as those
+          // two consumers already do for their own `row`-less case.
+          row={row}
+          onStartInteraction={onStartInteraction}
         />
       )}
     </SidePanel>
@@ -4225,29 +4261,16 @@ export function CustomerRowInfoPanel({
       // cluster, per explicit request.
       headerActions={
         <>
-          {/* Add Channel stays its own always-visible action(s) here
-              regardless of full-screen state — it opens a whole "Select
-              Channel/Address/Skill" form (`CustomerChannelPicker`), which
-              doesn't belong as a plain row inside the Refresh/Delete kebab
-              below; only true single-click actions collapse there.
-              Previously floated into `headerTitleBadge` (next to the
-              customer name) while full-screen instead of sitting here —
-              reverted per explicit follow-up request to keep it with the
-              rest of the action cluster in every mode; that floated
-              placement was also what forced the title+subhead box taller
-              than its plain-text case (see `container-header.tsx`'s own
-              `min-h-10` fix), so this also removes the one real consumer
-              that ever needed that extra headroom.
-
-              Per later explicit request, `isNarrow` now also drives WHICH
-              shape this renders as — same narrow/wide split the active-
-              interaction record header's own channel buttons use (see
-              `CustomerAddChannelButton`'s own doc comment): a single
-              solid-primary "+" while narrow/docked, or one button per
-              channel (Voice as a large solid-primary "Call" button, the
-              rest as always-visible outline icons) once full-screen gives
-              this row enough width. */}
-          <CustomerAddChannelButton row={row} isNarrow={isNarrowActions} onStartInteraction={onStartInteraction} />
+          {/* Add Channel moved out of this header entirely — per explicit
+              follow-up request ("move the contact icon buttons into the
+              customer overview and put them next to the edit button in a
+              row above the other information"), it now lives inside the
+              Customer Overview accordion's own top row instead (see
+              `CustomerInformationPanelBody`'s `row`/`onStartInteraction`
+              props, wired below at this panel's own body call site). This
+              header keeps only Refresh/Delete/prev/next/kebab/Open-Tab —
+              the momentary record-level actions that were never Add
+              Channel's own narrow/wide-mode concern to begin with. */}
           {isNarrowActions ? (
             // `KebabMenuButton`'s own default trigger is a fixed h-6 w-6
             // (24px) — visibly smaller than every other icon button in
@@ -4401,6 +4424,18 @@ export function CustomerRowInfoPanel({
         // Per explicit request — this is the other real panel, so it also
         // offers the Customer Overview edit button.
         allowOverviewEdit
+        // Feeds the Customer Overview accordion's own new top row of
+        // channel-launch buttons — see `CustomerInformationPanelBody`'s
+        // `row`/`onStartInteraction` doc comments. Was rendered in this
+        // panel's OWN header via `CustomerAddChannelButton` before (see
+        // `headerActions` above); moved here per explicit follow-up
+        // request. Always the "wide" one-button-per-channel shape now
+        // (not `isNarrowActions`-dependent like the old header placement
+        // was) — the Customer Overview card has its own fixed width
+        // regardless of whether this panel itself is docked or full
+        // screen, so there's no narrow/wide distinction left to make.
+        row={row}
+        onStartInteraction={onStartInteraction}
       />
     </InteriorPanel>
   );
@@ -4508,11 +4543,13 @@ export function CustomerFullScreenTabContent({
         subhead={recordId}
         actions={
           <>
-            {/* Always the "wide" (one button per channel) shape — this tab
-                fills the full desk-tab content column, never the narrow
-                docked width `CustomerRowInfoPanel`'s own `isNarrowActions`
-                measurement exists to detect. */}
-            <CustomerAddChannelButton row={row} isNarrow={false} onStartInteraction={onStartInteraction} />
+            {/* Add Channel moved out of this header — per explicit follow-up
+                request ("move the contact icon buttons into the customer
+                overview and put them next to the edit button in a row above
+                the other information"), it now lives inside the Customer
+                Overview accordion's own top row instead (see
+                `CustomerInformationPanelBody`'s `row`/`onStartInteraction`
+                props, wired below at this component's own body call site). */}
             <KebabMenuButton
               items={recordActionItems}
               ariaLabel="Record actions"
@@ -4561,6 +4598,13 @@ export function CustomerFullScreenTabContent({
           overviewEditing={overviewEditing}
           onOverviewEditingChange={setOverviewEditing}
           allowOverviewEdit
+          // Feeds the Customer Overview accordion's own new top row of
+          // channel-launch buttons — see `CustomerInformationPanelBody`'s
+          // `row`/`onStartInteraction` doc comments, and this component's
+          // own `actions` above (where `CustomerAddChannelButton` used to
+          // render before this follow-up request moved it here).
+          row={row}
+          onStartInteraction={onStartInteraction}
         />
       </PanelContent>
       {(recordDraft.isDirty || overviewEditing) && (

@@ -6,6 +6,7 @@
 import { useState } from "react";
 import {
   type ChannelType,
+  type NavItem,
   Tooltip,
   Popover,
   RadioGroup,
@@ -32,6 +33,8 @@ import {
 } from "@/components/agent-next-gen-shared-utils";
 import { cn } from "@/lib/utils";
 import {
+  Home,
+  Settings,
   ArrowUpDown,
   ChevronsDownUp,
   ChevronsUpDown,
@@ -474,14 +477,41 @@ export function interactionHasBreachedSla(interaction: Interaction, clockTick: n
 }
 
 /* ── Left nav items ──
-   Used to build the rail's Home/Settings items from here. Per explicit
-   request, both moved out — Settings first, then Home right after it —
-   into the shared "apps" panel system instead (`PanelKey`/
-   `PANEL_KEY_METADATA`/`contentByPanelKey`/`PANEL_KEY_INITIAL_ORDER`, each
-   page's own file), the same mechanism Search/Customers/WEM/etc. already
-   use: Home pinned and first, Settings unpinned, both reachable/pinnable
-   from "View All Apps" like any other app. LeftNav's own `items` prop is
-   now just `[]` at every call site — nothing lives in this rail anymore. */
+   Built from whether an interaction is currently active (see
+   `activeInteraction` below) rather than a static array, so "Home" (the
+   rail item — still routes to the Desk dashboard) stops showing as active —
+   and becomes clickable to navigate back — the moment an assignment takes
+   over the main content area. "Settings" sits below Home as a plain rail
+   item (same convention as lyra-ux-templates' and the
+   lyra-ui template story's own `buildNavItems`/`NAV_ITEMS`, both of which
+   already end their rail with a Settings item) rather than a standalone
+   AppHeader icon — see the `actions` block below, which no longer has one.
+   Settings is now a real third view (see `showSettings` state) — clicking
+   it opens a blank "Settings" page in the content column and highlights
+   this rail item, same on/off-exclusivity as Home vs. an active
+   interaction. */
+
+export function buildNavItems(
+  hasActiveInteraction: boolean,
+  onDeskClick: () => void,
+  showSettings: boolean,
+  onSettingsClick: () => void
+): NavItem[] {
+  return [
+    {
+      icon: <Home className="h-4 w-4" strokeWidth={1.5} />,
+      label: "Home",
+      active: !hasActiveInteraction && !showSettings,
+      onClick: onDeskClick,
+    },
+    {
+      icon: <Settings className="h-4 w-4" strokeWidth={1.5} />,
+      label: "Settings",
+      active: showSettings,
+      onClick: onSettingsClick,
+    },
+  ];
+}
 
 /* ── Assignments sort ──
    "Last Updated" ranks each assignment by its most recently added/touched
@@ -648,17 +678,16 @@ export function AssignmentsExpandCollapseAllButton({
    see that call site's own comment for "New Outbound"'s own back-and-forth
    on where it landed before settling back here), with the list of
    InteractionNavItem cards below it — both this caption and the cards
-   passed together as `header`. LeftNav's own icon rail (`items`) is empty
-   now — Home and Settings both moved out into the shared "apps" panel
-   system (see the "Left nav items" comment above) — so this caption + the
-   cards are the entire scrollable region below "New Outbound", with
-   nothing sticky pinned below them any more. `count` is
-   `interactions.length`, the exact same live list the cards render from,
-   so the two numbers can't drift apart. Collapsed to icon-only rail
-   (`expanded` false), the text has nowhere to go — but the sort button is
-   a real standalone action, not just a label, so it stays reachable as a
-   lone icon on its own rather than disappearing along with the text the
-   way the rest of this caption does.
+   passed together as `header`. The Home/Settings rail renders LAST
+   (LeftNav's default, non-`itemsFirst` order), sticky to the BOTTOM of the
+   scroll region instead of the top, so this caption + the cards are what
+   scrolls, not the rail. `count` is `interactions.length`, the exact same
+   live list the cards render from, so the two numbers can't drift apart.
+   Collapsed to icon-only rail (`expanded` false), the text has nowhere to
+   go — but the sort button is a real standalone action, not just a label,
+   so it stays reachable as a lone icon directly below Settings (the last
+   `items` rail button above it) rather than disappearing along with the
+   text the way the rest of this caption does.
 
    Sort button only shows once there's actually something to sort — with
    zero or one assignment there's only one possible order either way, so
@@ -678,6 +707,7 @@ export function AssignmentsSectionCaption({
   onSortChange,
   allExpanded,
   onToggleAllExpanded,
+  compact = false,
 }: {
   expanded?: boolean;
   count: number;
@@ -686,6 +716,26 @@ export function AssignmentsSectionCaption({
   /** See `AssignmentsExpandCollapseAllButton`'s own doc comment above. */
   allExpanded: boolean;
   onToggleAllExpanded: () => void;
+  /**
+   * Tightens this caption's own vertical padding — the heading row's
+   * `py-2` (8px top, 8px bottom) becomes `pt-0 pb-1` (0px top, 4px
+   * bottom), and the wrapper's own trailing `pb-2` (8px, the gap after
+   * `Separator`) becomes `pb-1` (4px) — per explicit request/devtools
+   * screenshot ("update the padding-top:0 and bottom:4px" on this
+   * caption). Off by default so every OTHER caller of this exported
+   * function keeps its original spacing unaffected — there's only one
+   * caller today (this file's own 3-page `stickyCaption` call sites, all
+   * passing `compact`), but this stays opt-in rather than the new
+   * default in case that changes. NOTE: an earlier attempt at this same
+   * fix landed on a lyra-ui-side *port* of this component
+   * (`assignments-section-caption.tsx`) instead of here — that port is
+   * only ever rendered by lyra-ui's own Storybook stories, never by this
+   * app (all 3 tiers import `AssignmentsSectionCaption` from THIS file,
+   * not from `@nicecxone/lyra-ui` — confirmed via the actual `import`
+   * statement, not assumption), so that earlier fix silently did nothing
+   * here. This copy is the one that actually renders in the app.
+   */
+  compact?: boolean;
 }) {
   const showSort = count > 1;
   if (!expanded) {
@@ -720,8 +770,20 @@ export function AssignmentsSectionCaption({
     // instead of leaving it flush edge-to-edge like every other separator
     // in this rail. The heading row is the only thing that should actually
     // shift right.
-    <div className="flex flex-col pb-2">
-      <div className="flex items-center justify-between gap-2 pl-2 py-2">
+    // `min-h-[36px]` on the heading row (below) — per explicit request, so
+    // this row's own height stays fixed regardless of `showSort`: with 2+
+    // assignments the row's real content (the "Assignments (N)" text plus
+    // the expand/collapse-all + sort buttons) is taller than plain text
+    // alone, but with 0 or 1 assignment `showSort` is `false` and the row
+    // shrinks to just the text's own line-height — previously causing a
+    // visible height jump right at this caption (and the `Separator`
+    // beneath it) whenever the last assignment was dismissed down to zero.
+    // 36px matches the buttons' own rendered height (icon buttons at
+    // `size="sm"`/32px, plus this row's vertical padding), so the
+    // buttons-present case is unaffected; only the buttons-absent case
+    // (0 or 1 assignment) is now padded out to match instead of shrinking.
+    <div className={cn("flex flex-col", compact ? "pb-1" : "pb-2")}>
+      <div className={cn("flex items-center justify-between gap-2 pl-2 min-h-[36px]", compact ? "pt-0 pb-1" : "py-2")}>
         <div className="flex items-baseline gap-1">
           <span className="lyra-body-md-emphasis text-lyra-fg-default">Assignments</span>
           <span className="lyra-body-md text-lyra-fg-secondary">({count})</span>
@@ -759,17 +821,17 @@ export const NOTIFICATION_CHANNEL: Record<string, ChannelType> = {
 };
 
 export const INITIAL_NOTIFICATIONS: AgentNotification[] = [
-  { id: "1", type: "new-case",       title: newCaseNotificationTitle(NOTIFICATION_CHANNEL["1"]), subtitle: "Noah Patel",   timestamp: "13m ago", read: false },
+  { id: "1", type: "new-case",       title: newCaseNotificationTitle(NOTIFICATION_CHANNEL["1"]), subtitle: "Noah Patel",   timestamp: "13m ago", read: true },
   // "new-agent-chat", not "new-chat" — a request from a colleague, not a
   // customer, so it gets its own type (distinct icon/color,
   // agent-notifications.tsx) and title, per explicit request that it read
   // as a different category from "Olivia Reed"'s customer chat below, not
   // just different label text on the same look.
-  { id: "2", type: "new-agent-chat", title: "New Agent Chat",                                            subtitle: "Sarah Miller",  timestamp: "18m ago", read: false },
+  { id: "2", type: "new-agent-chat", title: "New Agent Chat",                                            subtitle: "Sarah Miller",  timestamp: "18m ago", read: true },
   // "Escalation - {channel}" — same per-channel suffix pattern as
   // "new-case"'s own title, per explicit request, rather than a bare
   // "Escalation" that doesn't say what actually landed.
-  { id: "3", type: "escalation",     title: `Escalation - ${channelNoun(NOTIFICATION_CHANNEL["3"])}`,     subtitle: "Lauren Kim",    timestamp: "24m ago", read: false },
+  { id: "3", type: "escalation",     title: `Escalation - ${channelNoun(NOTIFICATION_CHANNEL["3"])}`,     subtitle: "Lauren Kim",    timestamp: "24m ago", read: true },
   { id: "4", type: "new-case",       title: newCaseNotificationTitle(NOTIFICATION_CHANNEL["4"]),          subtitle: "Ethan Zhang",   timestamp: "37m ago", read: true  },
   { id: "5", type: "new-chat",       title: "New Chat",                                                   subtitle: "Olivia Reed",   timestamp: "51m ago", read: true  },
   { id: "6", type: "missed-call",    title: "Missed Call",                                                 subtitle: "David Brown",   timestamp: "1h ago",  read: true  },

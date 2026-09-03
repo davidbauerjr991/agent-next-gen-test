@@ -578,6 +578,72 @@ function phoneDisplayFromValue(value: PhoneValue): string {
   return groups.length ? `+1 ${groups.join(" ")}` : "";
 }
 
+/** Small, self-contained pools `buildContactOverviewInfo` below picks from —
+ *  kept local to this file (not `CREATE_NEW_AGENTS`/a real customer-history
+ *  dataset) per this file's own "no dependency on any other piece of mock
+ *  data" rule at the top — deterministic hashing needs something to index
+ *  into either way, and a small fixed pool here is simpler than threading a
+ *  real agent roster through a "dependency-free" utils file. */
+const CONTACT_OVERVIEW_PREVIOUS_AGENTS: { name: string; agentId: string }[] = [
+  { name: "Agent Williams", agentId: "AGT-11233" },
+  { name: "Agent Chen", agentId: "AGT-10847" },
+  { name: "Agent Rivera", agentId: "AGT-11590" },
+  { name: "Agent Patel", agentId: "AGT-10412" },
+  { name: "Agent Novak", agentId: "AGT-11078" },
+];
+const CONTACT_OVERVIEW_SNAPSHOTS: string[][] = [
+  [
+    "Asked about upgrading to the Pro tier for additional storage. Walked through the upgrade flow and confirmed the new billing amount.",
+    "Previously disputed a charge that was resolved in the customer's favor; handle related questions with extra care.",
+  ],
+  [
+    "Reported intermittent login issues on mobile; traced to an outdated app version and resolved after updating.",
+    "Requested a callback about a billing question that was never completed — may still be expecting a follow-up.",
+  ],
+  [
+    "Inquired about canceling a subscription; retained after being offered a discounted plan.",
+    "Long-tenured customer — prioritize a smooth, low-friction experience.",
+  ],
+  [
+    "Had trouble setting up two-factor authentication; walked through it successfully.",
+    "No prior escalations on file.",
+  ],
+];
+
+/** Deterministic (hashed via `hashSeed`, no `Math.random`) mock "what to
+ *  know before you start typing" info for a freshly-launched contact —
+ *  feeds `ContactOverview`'s own `previousAgent`/`snapshot` props
+ *  (lyra-ui's `ContactOverviewInfo`, not imported here by name per this
+ *  file's own dependency-direction rule — the returned shape just happens
+ *  to match it structurally). Callers seed this with something stable per
+ *  contact (e.g. the Interaction's own id) so the same customer always
+ *  reads back the same "previously worked with"/snapshot on every fresh
+ *  launch, rather than reshuffling on every render.
+ *
+ *  `isKnownCustomer` — per explicit request/bug fix: an outbound/inbound
+ *  contact with no backing `CREATE_NEW_CUSTOMERS` directory record (a
+ *  typed address via lyra-ui's `adhoc:` "Continue with" flow, a
+ *  `quickdial:`-dialed number, a `redial:` with no real `customerId`, a
+ *  hand-authored Contact History-only entry — see each call site's own
+ *  "is this a real customer" check, e.g. `activeInteractionIsRealCustomer`)
+ *  has, by definition, no genuine prior-agent/snapshot history to surface
+ *  — both fields come back `undefined` rather than a hashed-but-fictional
+ *  "already been working with Agent X" that would misrepresent a
+ *  genuinely brand-new contact as a returning one. Callers should only
+ *  skip passing this at all (defaulting `true`) when they've already
+ *  established the contact is real by some other means. */
+function buildContactOverviewInfo(
+  seed: string,
+  isKnownCustomer: boolean = true
+): { previousAgent?: { name: string; agentId: string }; snapshot?: string[] } {
+  if (!isKnownCustomer) return {};
+  const hash = hashSeed(seed);
+  return {
+    previousAgent: CONTACT_OVERVIEW_PREVIOUS_AGENTS[hash % CONTACT_OVERVIEW_PREVIOUS_AGENTS.length],
+    snapshot: CONTACT_OVERVIEW_SNAPSHOTS[hash % CONTACT_OVERVIEW_SNAPSHOTS.length],
+  };
+}
+
 /** Which of the three top-level views `AgentNextGenPage` is currently
  *  showing — the Desk dashboard, an active interaction's record, or
  *  Settings. */
@@ -593,6 +659,20 @@ type Page = "agent-workspace" | "agent" | "agent-with-desk" | "agent-advanced" |
  *  underlying `resolvedTodayCount` state/tracking is untouched — only this
  *  Badge's visibility is gated, so re-enabling it later is a one-line flip. */
 const SHOW_RESOLVED_TODAY_CHIP = false;
+
+/** Per explicit request ("now hide the '+' button on interactions in the
+ *  page header - I may bring it back though if I need it but hide for
+ *  now"): gates the blue "+" `AddChannelAdHocButton`/`getHeaderAction`
+ *  trigger each of the 3 Agent Workspace pages renders in its own
+ *  record-header action cluster (2.0's `showAddChannelActions &&
+ *  activeChannel` branch; Premium/Advanced's unconditional
+ *  `getHeaderAction(...) ?? <AddChannelAdHocButton />` branch). Same
+ *  "hide for now" flag pattern as `SHOW_RESOLVED_TODAY_CHIP` right above —
+ *  a single shared toggle here rather than duplicating the on/off logic
+ *  per page. `handleAddAdHocChannel` and everything else this button
+ *  would have triggered are untouched — only the button's own visibility
+ *  is gated, so re-enabling it later is a one-line flip. */
+const SHOW_ADD_CHANNEL_HEADER_BUTTON = false;
 
 export {
   initialsFor,
@@ -621,6 +701,7 @@ export {
   nextInteractionSortDirection,
   quickReplyFieldDisplayValue,
   hashSeed,
+  buildContactOverviewInfo,
   synthesizePhone,
   splitCustomerName,
   synthesizeChannelAddress,
@@ -633,5 +714,6 @@ export {
   phoneValueFromDisplay,
   phoneDisplayFromValue,
   SHOW_RESOLVED_TODAY_CHIP,
+  SHOW_ADD_CHANNEL_HEADER_BUTTON,
 };
 export type { Page };

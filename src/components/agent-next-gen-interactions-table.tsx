@@ -6,23 +6,20 @@
 // Inbox Assignee/Owner Assignee/Tag/Create Date filter set, a sortable
 // table, and "N–M of T" pagination).
 //
-// Filters render inline next to Search via `TableToolbar`'s own automatic
-// `filterDefs` rendering — every field's `FilterChip` shows up front, with
-// `TableToolbar`'s own built-in overflow measurement collapsing whichever
-// don't fit into a trailing "+N" chip, matching the lyra-ui "Data
-// Management (Multiple Filters)" story exactly. Per explicit follow-up
-// request ("display all the filters in line with the search... don't
-// force them to add filters with the check boxes"), there is no "+ Filter"
-// add-menu here (unlike `CustomersListView`, agent-next-gen-customers-
-// table.tsx, which is out of scope for that request and keeps its own
-// add-menu as-is) — see `INTERACTION_HISTORY_FILTER_FIELD_DEFS`/
-// `InteractionsListView`'s own filter state below. Create Date doesn't fit
-// `filterDefs`' plain string[]-values shape (a date RANGE, not a set of
-// picked values), so it's always rendered directly as its own
-// `DateRangeFilterChip` (lyra-ui's shared Today/Yesterday/Last 7 days/
+// Filters use the SAME "+ Filter" add-menu → `FilterChip` pattern the
+// Customers tab already established (`CustomersListView`, agent-next-gen-
+// customers-table.tsx — `addedFilterKeys`/`filterValues`/`TableToolbar`'s
+// own automatic `filterDefs` rendering), per explicit request, rather than
+// this table's own first pass (a single always-open "Filter Options" panel
+// with every field shown at once) — see `INTERACTION_HISTORY_FILTER_FIELD_
+// DEFS`/`InteractionsListView`'s own filter state below for exactly how
+// that's wired here. Create Date is the one field that doesn't fit that
+// generic string[]-values shape (a date RANGE, not a set of picked values)
+// — it's still toggled on/off from that same add-menu, but renders as its
+// own `DateRangeFilterChip` (lyra-ui's shared Today/Yesterday/Last 7 days/
 // Custom date-range control — already used identically by the Contact
 // History card and the Performance/Productivity cards' own date filters)
-// alongside the `filterDefs`-driven chips, rather than through that prop.
+// instead of going through `filterDefs`.
 //
 // Reuses `INTERACTION_CHANNELS`/`RESOLUTION_TIMES`/`INTERACTION_OWNERS`
 // (agent-next-gen-interaction-dashboard.tsx — the same pools the per-customer
@@ -70,26 +67,26 @@ import {
 } from "@nicecxone/lyra-ui";
 import { CREATE_NEW_CUSTOMERS } from "@nicecxone/lyra-ui/customers-data";
 import { CREATE_NEW_AGENTS } from "@nicecxone/lyra-ui/agents-data";
-import { SubmitSearchInput } from "@/components/agent-next-gen-submit-search-input";
-import { useToolbarRowNarrow } from "@/components/agent-next-gen-use-toolbar-row-narrow";
 import {
   INTERACTION_CHANNELS,
   RESOLUTION_TIMES,
   INTERACTION_OWNERS,
 } from "@/components/agent-next-gen-interaction-dashboard";
 import { OUTBOUND_SKILLS } from "@/components/agent-next-gen-outbound-data";
-import { SESSION_STATUS_TO_CONTACT_HISTORY_VARIANT } from "@/components/agent-next-gen-contact-history";
+import {
+  SESSION_STATUS_TO_CONTACT_HISTORY_VARIANT,
+  type ContactHistoryEntry,
+} from "@/components/agent-next-gen-contact-history";
 import { nextCustomerSortDirection, CURRENT_AGENT_NAME } from "@/components/agent-next-gen-shared-utils";
 import { cn } from "@/lib/utils";
 import {
   Mail,
   Phone,
   MessageCircle,
-  MessageSquare,
-  Smartphone,
   ArrowDown,
   ArrowUp,
   RefreshCw,
+  Plus,
   PhoneOutgoing,
   RotateCcw,
   UserCheck,
@@ -118,13 +115,7 @@ export interface InteractionHistoryRecord {
   /** "" for an unassigned interaction — rendered as an empty cell, matching
    *  the reference screenshot's own blank Owner Assignee rows. */
   ownerAssignee: string;
-  /** "whatsapp"/"sms" added per explicit request ("add a channel type
-   *  filter to the contacts table and allow it to filter email, chat,
-   *  whatsapp, sms") — this file's OWN type, not the shared `ContactInteraction`
-   *  (agent-next-gen-customers-table.tsx) this doc comment's own top section
-   *  already avoids widening for the same reason, so adding values here
-   *  risks nothing outside this table. */
-  type: "email" | "chat" | "voice" | "whatsapp" | "sms";
+  type: "email" | "chat" | "voice";
   direction: "inbound" | "outbound";
   /** Real `Date` (not just a display string) — what Create Date sorting and
    *  the "Create Date" `DateRangeFilterChip` (see this file's own filter
@@ -202,22 +193,6 @@ function formatInteractionDate(d: Date): string {
   return `${mm}/${dd}/${yy} ${hour12}:${minute} ${hour24 >= 12 ? "PM" : "AM"}`;
 }
 
-// Local channel-type cycle for the new "Channel Type" filter (email/chat/
-// whatsapp/sms, per explicit request "add a channel type filter to the
-// contacts table and allow it to filter email, chat, whatsapp, sms").
-// Deliberately layered independently of `INTERACTION_CHANNELS`' own `type`
-// (agent-next-gen-interaction-dashboard.tsx — shared with the per-customer
-// accordion's `buildInteractions`) rather than widening that shared pool's
-// values, same "this table gets its own thing instead of risking that
-// other, narrower consumer" reasoning this file's own top doc comment
-// already gives for `InteractionHistoryRecord` existing at all. Keeps
-// "voice" in the cycle too (an existing, still-real value — Redial/the
-// Type column icon both still handle it) even though it isn't one of the
-// four values the new filter's own options list offers; a voice row is
-// simply never matched by that filter, which is correct — it isn't email,
-// chat, whatsapp, or sms.
-const CHANNEL_TYPE_CYCLE: InteractionHistoryRecord["type"][] = ["email", "chat", "whatsapp", "sms", "voice"];
-
 /** Deterministic (no `Math.random`, same reasoning every other mock-data
  *  builder in this app follows) — cycles through `CREATE_NEW_CUSTOMERS`
  *  (60 records) and `INTERACTION_CHANNELS` (7) more than once as `count`
@@ -239,7 +214,7 @@ function buildInteractionHistory(count: number): InteractionHistoryRecord[] {
       id: `ih-${i}`,
       priority: i % 4,
       ownerAssignee: i % 5 === 0 ? "" : INTERACTION_OWNERS[(i * 3) % INTERACTION_OWNERS.length],
-      type: CHANNEL_TYPE_CYCLE[i % CHANNEL_TYPE_CYCLE.length],
+      type: source.type,
       direction: i % 2 === 0 ? "inbound" : "outbound",
       createDateValue,
       createDate: formatInteractionDate(createDateValue),
@@ -255,6 +230,73 @@ function buildInteractionHistory(count: number): InteractionHistoryRecord[] {
       tags: [INTERACTION_TAGS_POOL[i % INTERACTION_TAGS_POOL.length], ...(i % 3 === 0 ? [INTERACTION_TAGS_POOL[(i + 2) % INTERACTION_TAGS_POOL.length]] : [])],
     };
   });
+}
+
+/** Relative "Nm ago"/"Nh ago"/"Nd ago" string for a row's real
+ *  `createDateValue` — the same style of string every hand-authored
+ *  `ContactHistoryEntry.timeAgo` in this app already uses (e.g. "34m ago",
+ *  "2h ago"), computed live here since `InteractionHistoryRecord` has no
+ *  such field of its own (just the real `Date`). Used only by
+ *  `buildContactHistoryEntryFromInteractionRecord` below. */
+function formatInteractionRecordTimeAgo(date: Date): string {
+  const diffMs = Date.now() - date.getTime();
+  const minutes = Math.max(0, Math.floor(diffMs / 60000));
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+/**
+ * Adapts a row from this table into `ContactHistoryEntry`'s own shape
+ * (agent-next-gen-contact-history.tsx) — per explicit follow-up request
+ * ("in the dashboard / contacts table - when one of the rows is clicked,
+ * open an interior panel like the ones in My Contact History"), this lets
+ * a click on this table's row reuse that file's existing
+ * `ContactHistoryEntryDetail` summary component (Duration/Chat Summary box
+ * + synthesized Conversation/Transcript/Body section) unchanged, rather
+ * than building a second, parallel detail view for a data shape that's
+ * already 90% the same information under different field names —
+ * `SESSION_STATUS_TO_CONTACT_HISTORY_VARIANT` already covers every status
+ * this table's own `InteractionHistoryStatus` can produce (both pull from
+ * the same Open/Pending/Escalated/Resolved/Closed vocabulary), and
+ * `record.type` (email/chat/voice) is already a strict subset of
+ * `ChannelType`.
+ *
+ * Field mapping: `statusLabel`/`caseId`/`skillName` map straight across
+ * (`record.status`/`caseId`/`skill`); `description` uses `record.context`
+ * (the same short one-line case summary `ContactHistoryEntry.description`
+ * is), `duration` uses `record.resolutionTime` ("—" while still open, same
+ * placeholder `ContactHistoryEntryDetail` already renders as plain text
+ * either way), and `timeAgo` is computed fresh from the row's real
+ * `createDateValue` via `formatInteractionRecordTimeAgo` above (this
+ * table's own rows carry a real `Date`, unlike `ContactHistoryEntry`'s
+ * hand-authored `timeAgo` strings). `redial` is true only for `voice` rows,
+ * matching every other `ContactHistoryEntry` consumer's own "Redial is
+ * voice-only" convention. `messages`/`email`/`phone`/`whatsappHandle` are
+ * left undefined — `ContactHistoryEntryDetail` already falls back to its
+ * own synthesized `buildContactHistoryMessages`/`buildContactHistoryEmailBody`
+ * for every entry with no real transcript behind it, the same fallback
+ * every hand-authored Contact History row already relies on.
+ */
+export function buildContactHistoryEntryFromInteractionRecord(record: InteractionHistoryRecord): ContactHistoryEntry {
+  return {
+    id: record.id,
+    name: record.customerName,
+    statusLabel: record.status,
+    statusVariant: SESSION_STATUS_TO_CONTACT_HISTORY_VARIANT[record.status] ?? "neutral",
+    redial: record.type === "voice",
+    description: record.context,
+    caseId: record.caseId,
+    skillName: record.skill,
+    channelType: record.type,
+    channelLabel: record.channel,
+    timeAgo: formatInteractionRecordTimeAgo(record.createDateValue),
+    duration: record.resolutionTime,
+    customerId: record.caseId,
+  };
 }
 
 // Seed data only — `InteractionsListView` copies this into its own `records`
@@ -310,22 +352,14 @@ export const INTERACTION_HISTORY_FIXED_COLUMNS_WIDTH = 40 /* checkbox */ + 48 /*
 
 /* ── Filters ── */
 
-type InteractionHistoryFilterKey = "type" | "channel" | "status" | "skill" | "inboxAssignee" | "ownerAssignee" | "tags";
+type InteractionHistoryFilterKey = "channel" | "status" | "skill" | "inboxAssignee" | "ownerAssignee" | "tags";
 
 // Rendered as real `FilterChip`s via `TableToolbar`'s own `filterDefs` prop
 // (table.tsx — "Declarative filter definitions — renders FilterChip
 // components automatically") once added, same as `CUSTOMER_FILTER_FIELD_
 // DEFS` (agent-next-gen-customers-table.tsx) already does for the Customers
 // tab.
-//
-// "Channel Type" (`type`) — per explicit request ("add a channel type
-// filter to the contacts table and allow it to filter email, chat,
-// whatsapp, sms") — labeled distinctly from the existing "Channel" filter
-// above, which filters the unrelated per-queue `channel` field (e.g.
-// "SMS_General", "Rebooking_Chat") rather than the actual communication
-// medium this new filter targets.
 export const INTERACTION_HISTORY_FILTER_FIELD_DEFS: { key: InteractionHistoryFilterKey; label: string }[] = [
-  { key: "type", label: "Channel Type" },
   { key: "channel", label: "Channel" },
   { key: "status", label: "Status" },
   { key: "skill", label: "Skill" },
@@ -337,19 +371,8 @@ export const INTERACTION_HISTORY_FILTER_FIELD_DEFS: { key: InteractionHistoryFil
 // Distinct values actually present in `INTERACTION_HISTORY_RECORDS` for each
 // filterable field — same "precompute once at module load" reasoning
 // `CUSTOMER_FILTER_VALUE_OPTIONS` already uses (the dataset never changes
-// at runtime). `type` is the one exception: a fixed four-value list (not
-// derived from what's present, the way `channel`/`skill` are) — same
-// "known, closed vocabulary" reasoning `status` below already follows for
-// its own fixed `INTERACTION_STATUSES` list — since the request calls out
-// exactly these four values regardless of the mock dataset's own mix.
-const CHANNEL_TYPE_FILTER_OPTIONS: { value: InteractionHistoryRecord["type"]; label: string }[] = [
-  { value: "email", label: "Email" },
-  { value: "chat", label: "Chat" },
-  { value: "whatsapp", label: "WhatsApp" },
-  { value: "sms", label: "SMS" },
-];
+// at runtime).
 const INTERACTION_HISTORY_FILTER_VALUE_OPTIONS: Record<InteractionHistoryFilterKey, { value: string; label: string }[]> = {
-  type: CHANNEL_TYPE_FILTER_OPTIONS,
   channel: Array.from(new Set(INITIAL_INTERACTION_HISTORY_RECORDS.map((r) => r.channel))).map((v) => ({ value: v, label: v })),
   status: INTERACTION_STATUSES.map((v) => ({ value: v, label: v })),
   skill: Array.from(new Set(INITIAL_INTERACTION_HISTORY_RECORDS.map((r) => r.skill))).map((v) => ({ value: v, label: v })),
@@ -358,12 +381,18 @@ const INTERACTION_HISTORY_FILTER_VALUE_OPTIONS: Record<InteractionHistoryFilterK
   tags: INTERACTION_TAGS_POOL.map((v) => ({ value: v, label: v })),
 };
 
-// "Create Date" is always shown too (see this file's own top-of-file doc
-// comment), but a date RANGE doesn't fit `ToolbarFilterDef`'s plain
-// string[]-of-picked-values shape — so it gets its own `DateRangeFilterChip`
-// rendered directly in `InteractionsListView`'s `filters` slot, right
-// alongside the `filterDefs`-driven chips, rather than folding into
-// `INTERACTION_HISTORY_FILTER_FIELD_DEFS` above.
+// "Create Date" joins the same "+ Filter" add-menu as the 6 categorical
+// fields above, but a date RANGE doesn't fit `ToolbarFilterDef`'s plain
+// string[]-of-picked-values shape — so it's a separate constant (not folded
+// into `INTERACTION_HISTORY_FILTER_FIELD_DEFS`, which only ever holds
+// fields `filterDefs` can render automatically) and gets its own
+// `DateRangeFilterChip` rendered directly in `InteractionsListView`'s
+// `filters` slot once added, right alongside the `filterDefs`-driven chips.
+const CREATE_DATE_RANGE_KEY = "createDateRange";
+export const INTERACTION_HISTORY_ADDABLE_FILTER_OPTIONS: { value: string; label: string }[] = [
+  ...INTERACTION_HISTORY_FILTER_FIELD_DEFS.map((f) => ({ value: f.key, label: f.label })),
+  { value: CREATE_DATE_RANGE_KEY, label: "Create Date" },
+];
 
 /** Real start/end `Date` bounds for a `DateRangeFilterChip` selection —
  *  that component only tracks WHICH range is selected (`DateRangeFilterValue`
@@ -621,8 +650,6 @@ const CHANNEL_TYPE_ICON: Record<InteractionHistoryRecord["type"], typeof Mail> =
   email: Mail,
   voice: Phone,
   chat: MessageCircle,
-  whatsapp: MessageSquare,
-  sms: Smartphone,
 };
 
 export interface InteractionsListViewProps {
@@ -648,23 +675,37 @@ export interface InteractionsListViewProps {
    *  without a crash — a row click just silently no-ops in that case, same
    *  as `onAddToast` above. */
   onOpenInteraction?: (record: InteractionHistoryRecord) => void;
+  /** Per explicit follow-up request ("when the contact row is selected show
+   *  it as active and allow it to close the panel on toggle") — the id of
+   *  whichever record the CALLER currently has a summary panel open for
+   *  (`AgentNextGenPage.tsx`'s own `selectedAllContactsRecord`, All
+   *  Contacts view — see BEHAVIOR.md §136), so that row can be shown as
+   *  active here even though the panel itself lives outside this
+   *  component. Deliberately a separate id rather than reusing
+   *  `selectedIds` (the bulk-actions checkbox selection, above) — the two
+   *  are unrelated concepts that can be true independently (a row can be
+   *  checkbox-selected for a bulk action while a DIFFERENT row's panel is
+   *  open) and shouldn't visually collide. Optional/`null`-safe so this
+   *  component still renders standalone with no row ever marked active. */
+  activeRecordId?: string | null;
 }
 
-export function InteractionsListView({ onAddToast, onOpenInteraction }: InteractionsListViewProps = {}) {
+export function InteractionsListView({ onAddToast, onOpenInteraction, activeRecordId = null }: InteractionsListViewProps = {}) {
   // Own copy of the seed data — mutated in place by the bulk-actions
   // toolbar's three "apply to every selected row" handlers below (Assign to
   // Me/Assign to Others/Change Status). `INITIAL_INTERACTION_HISTORY_RECORDS`
   // itself is never touched, so a remount (e.g. switching desk tabs away and
   // back) starts fresh rather than keeping stale bulk edits around.
   const [records, setRecords] = useState<InteractionHistoryRecord[]>(INITIAL_INTERACTION_HISTORY_RECORDS);
-  // Per explicit request — this table searches a (simulated) ~50k-record
-  // database, so filtering shouldn't re-run on every keystroke. `searchDraft`
-  // is the live-typed value the field itself displays; `searchQuery` (used
-  // below in `filtered`) only updates once the agent actually submits —
-  // Enter, or `SubmitSearchInput`'s own arrow button — see that component's
-  // own top-of-file doc comment for the full reasoning/what it replaces.
-  const [searchDraft, setSearchDraft] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  // Which fields the agent has added via the "+ Filter" menu — same
+  // "starts empty, nothing renders until explicitly added" shape
+  // `CustomersListView`'s own `addedFilterKeys` uses. Can hold
+  // `CREATE_DATE_RANGE_KEY` alongside the 6 categorical
+  // `InteractionHistoryFilterFieldDefs` keys — see that key's own doc
+  // comment for why it's still tracked here even though it doesn't go
+  // through `filterValues` below.
+  const [addedFilterKeys, setAddedFilterKeys] = useState<string[]>([]);
   const [filterValues, setFilterValues] = useState<Record<string, string[]>>({});
   const [createDateRangeValue, setCreateDateRangeValue] = useState<DateRangeFilterValue>("today");
   const [createDateRangeCustom, setCreateDateRangeCustom] = useState<DateRangePickerProps["value"]>(undefined);
@@ -677,18 +718,27 @@ export function InteractionsListView({ onAddToast, onOpenInteraction }: Interact
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(25);
 
-  // Always every field — per explicit request, nothing is gated behind a
-  // "+ Filter" add-menu any more (see this file's own top-of-file doc
-  // comment); `TableToolbar` renders these as `FilterChip`s inline next to
-  // Search and collapses whichever don't fit into its own "+N" overflow
-  // automatically.
-  const filterDefs = INTERACTION_HISTORY_FILTER_FIELD_DEFS.map((def) => ({
-    key: def.key,
-    label: def.label,
-    options: INTERACTION_HISTORY_FILTER_VALUE_OPTIONS[def.key],
-  }));
+  const filterDefs = addedFilterKeys
+    .filter((key): key is InteractionHistoryFilterKey => key !== CREATE_DATE_RANGE_KEY)
+    .map((key) => {
+      const def = INTERACTION_HISTORY_FILTER_FIELD_DEFS.find((f) => f.key === key)!;
+      return { key: def.key, label: def.label, options: INTERACTION_HISTORY_FILTER_VALUE_OPTIONS[def.key] };
+    });
+  const createDateRangeAdded = addedFilterKeys.includes(CREATE_DATE_RANGE_KEY);
   const handleFilterChange = (key: string, values: string[]) => setFilterValues((prev) => ({ ...prev, [key]: values }));
   const clearAllFilters = () => setFilterValues({});
+  // Removing a field from the "+ Filter" menu also drops its stored
+  // selected values — same reasoning `CustomersListView`'s own
+  // `handleAddedFiltersChange` gives: re-adding it later should start
+  // fresh, not resurrect a stale selection nobody could see in the
+  // meantime. `CREATE_DATE_RANGE_KEY` has no `filterValues` entry to prune
+  // (its own state lives separately below) — removing it just stops
+  // `createDateRangeAdded` from applying; its stored range/custom value is
+  // deliberately left alone so re-adding it comes back where it was.
+  const handleAddedFiltersChange = (keys: string[]) => {
+    setAddedFilterKeys(keys);
+    setFilterValues((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => keys.includes(k))));
+  };
 
   // Nothing to actually re-fetch (this tab's data is a fixed mock set) —
   // Refresh just snaps back to page 1, same as any "reload the current
@@ -716,12 +766,15 @@ export function InteractionsListView({ onAddToast, onOpenInteraction }: Interact
     columnOrder.reduce((sum, key) => sum + INTERACTION_HISTORY_COLUMN_CONFIG[key].minWidthPx, 0);
 
   const filtered = useMemo(() => {
-    // Create Date is always shown/active now (see this file's own
-    // top-of-file doc comment) — computed inside this `useMemo`, not as an
-    // outer `const`, purely so its dependency array can key on the two
-    // plain values that actually determine it rather than a
-    // freshly-allocated `{from, to}` object every render.
-    const dateBounds = dateRangeBounds(createDateRangeValue, createDateRangeCustom);
+    // Only computed/applied while "Create Date" is actually one of the
+    // added filters — `dateRangeBounds` otherwise never runs and `from`/
+    // `to` both stay `undefined`, matching every other field's own "no
+    // entry in `filterValues` (or, here, not added at all) means no-op"
+    // behavior. Computed inside this `useMemo`, not as an outer `const`,
+    // purely so its dependency array can key on the three plain values
+    // that actually determine it rather than a freshly-allocated `{from,
+    // to}` object every render.
+    const dateBounds = createDateRangeAdded ? dateRangeBounds(createDateRangeValue, createDateRangeCustom) : {};
     const query = searchQuery.trim().toLowerCase();
     return records.filter((r) => {
       if (query) {
@@ -740,7 +793,7 @@ export function InteractionsListView({ onAddToast, onOpenInteraction }: Interact
       if (dateBounds.to && r.createDateValue > dateBounds.to) return false;
       return true;
     });
-  }, [records, searchQuery, filterValues, createDateRangeValue, createDateRangeCustom]);
+  }, [records, searchQuery, filterValues, createDateRangeAdded, createDateRangeValue, createDateRangeCustom]);
 
   // Priority/Create Date are real numbers/dates; Resolution/First Response
   // Time sort by their shared `RESOLUTION_TIMES` pool's own index (already
@@ -873,109 +926,86 @@ export function InteractionsListView({ onAddToast, onOpenInteraction }: Interact
     return value === "" ? "" : String(value);
   };
 
-  // Per explicit request ("the row for search, filters and controls should
-  // be responsive... same responsiveness as depicted in lyra-ui") — see
-  // agent-next-gen-use-toolbar-row-narrow.ts's own top doc comment, and the
-  // identical usage in agent-next-gen-customers-table.tsx, for the full
-  // reasoning.
-  const { ref: toolbarRowRef, isNarrow: toolbarRowNarrow } = useToolbarRowNarrow();
-
   return (
     <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
-      {/* `SubmitSearchInput` and `TableToolbar` as flex SIBLINGS in one row
-          (not `TableToolbar`'s own built-in `searchQuery`/`onSearchChange`
-          — see `SubmitSearchInput`'s own top-of-file doc comment for why)
-          — `TableToolbar` renders its own filters+actions as one already-
-          flush row when `searchQuery` is omitted (`hasSearch` false), so
-          putting our own search box beside it here, both sharing this
-          wrapper's own `px-6 py-3`/`gap-2` (removed from `TableToolbar`'s
-          own className below so it doesn't double up), reconstructs the
-          original single-row search+filters+actions layout almost exactly,
-          still without touching `TableToolbar` itself.
-          `toolbarRowNarrow` switches this row to a full-width stack
-          (search alone on top, `TableToolbar` alone below it) once
-          genuinely narrow — same fix/reasoning as
-          agent-next-gen-customers-table.tsx's identical usage. */}
-      <div
-        ref={toolbarRowRef}
-        className={cn("flex gap-2 px-6 py-3", toolbarRowNarrow ? "flex-col items-stretch" : "items-center")}
-      >
-        <SubmitSearchInput
-          value={searchDraft}
-          onValueChange={setSearchDraft}
-          onSubmit={setSearchQuery}
-          placeholder="Search"
-          // `flex-1 min-w-[240px] max-w-[320px]` when side by side — same
-          // sizing class `TableToolbar`'s own real `SearchInput` uses
-          // (table.tsx). `w-full` once `toolbarRowNarrow` — see the row
-          // wrapper's own doc comment above.
-          className={toolbarRowNarrow ? "w-full" : "flex-1 min-w-[240px] max-w-[320px]"}
-        />
-        <TableToolbar
-          // `gap-0` (overrides `TableToolbar`'s own base `gap-2`) — with no
-          // `searchQuery`/`onSearchChange` (search lives in our own sibling
-          // above instead), `TableToolbar` still unconditionally renders its
-          // row-1 wrapper div even though nothing inside it ever has content
-          // here (`hasSearch` is false, and `hasFilters && !isNarrow` is
-          // false too whenever this docked panel is narrower than 768px,
-          // which it always is) — an empty div, but `flex-col gap-2`'s gap
-          // still applies between it and row 2 (the actual filters+actions
-          // row), pushing that visible row 8px lower than our search box
-          // sitting right beside it. Kept unconditionally even once
-          // `toolbarRowNarrow` — see the identical `gap-0` doc comment in
-          // agent-next-gen-customers-table.tsx for why. `w-full` once
-          // `toolbarRowNarrow` — see the row wrapper's own doc comment
-          // above.
-          className={cn("py-0 gap-0", toolbarRowNarrow ? "w-full" : "flex-1 min-w-0")}
-          filterDefs={filterDefs}
-          filterValues={filterValues}
-          onFilterChange={handleFilterChange}
-          onFilterClear={clearAllFilters}
-          // Create Date is always shown too, right alongside the `filterDefs`-
-          // driven chips — it renders as its own `DateRangeFilterChip` rather
-          // than through `filterDefs`, since that prop can only render plain
-          // multi-value `FilterChip`s, not a date range. No add-menu here per
-          // explicit request — every filter (including this one) is always
-          // on, with `TableToolbar`'s own overflow measurement collapsing
-          // whichever `filterDefs` chips don't fit into its "+N" trigger.
-          filters={
-            <DateRangeFilterChip
-              label="Create Date"
-              value={createDateRangeValue}
-              onValueChange={setCreateDateRangeValue}
-              customValue={createDateRangeCustom}
-              onCustomValueChange={setCreateDateRangeCustom}
-            />
-          }
-          actionDefs={[
-            { key: "refresh", label: "Refresh", icon: <RefreshCw className="h-4 w-4" strokeWidth={1.5} />, onClick: handleRefresh },
-          ]}
-          // Bulk action icons render here — the exact slot the old "Reset"
-          // (trash-can) action used to occupy — only while at least one row
-          // is checked, per explicit request (none of these actions delete
-          // anything, so the trash icon was removed outright rather than
-          // reused for them). See `InteractionBulkActionIcons`'s own doc
-          // comment.
-          actions={
-            <>
-              {selectedIds.size > 0 && (
-                <InteractionBulkActionIcons
-                  onAssignToMe={handleAssignToMe}
-                  onAssignToOther={handleAssignToOther}
-                  onAssignToSkill={handleAssignToSkill}
-                  onChangeStatus={handleChangeStatus}
-                  onSendMessage={handleSendMessage}
-                />
-              )}
-              <ColumnToggle
-                columns={INTERACTION_HISTORY_ALL_COLUMN_DEFS}
-                visibleColumns={visibleCols}
-                onVisibilityChange={setVisibleCols}
+      <TableToolbar
+        className="px-6"
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Search"
+        filterDefs={filterDefs}
+        filterValues={filterValues}
+        onFilterChange={handleFilterChange}
+        onFilterClear={clearAllFilters}
+        // The "+ Filter" add-menu itself, right after the `filterDefs`-
+        // driven chips it decides the contents of — same composition/order
+        // `CustomersListView`'s own `filters` slot uses (`Select multiple
+        // searchable showSelectAll`, a custom "+ Filter" trigger instead of
+        // its default text box). "Create Date" lives in this SAME menu (see
+        // `INTERACTION_HISTORY_ADDABLE_FILTER_OPTIONS`'s own doc comment)
+        // but renders as its own `DateRangeFilterChip` before the trigger,
+        // once added, rather than through `filterDefs` — that prop can only
+        // render plain multi-value `FilterChip`s, not a date range.
+        filters={
+          <>
+            {createDateRangeAdded && (
+              <DateRangeFilterChip
+                label="Create Date"
+                value={createDateRangeValue}
+                onValueChange={setCreateDateRangeValue}
+                customValue={createDateRangeCustom}
+                onCustomValueChange={setCreateDateRangeCustom}
               />
-            </>
-          }
-        />
-      </div>
+            )}
+            <Select
+              options={INTERACTION_HISTORY_ADDABLE_FILTER_OPTIONS}
+              multiple
+              searchable
+              showSelectAll
+              dropdownAlign="left"
+              values={addedFilterKeys}
+              onValuesChange={handleAddedFiltersChange}
+              trigger={
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lyra-sm lyra-label transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lyra-border-focus focus-visible:ring-offset-2 border border-lyra-border-soft bg-lyra-bg-control text-lyra-fg-action hover:bg-lyra-state-hover active:bg-lyra-state-pressed h-8 px-3"
+                >
+                  <Plus className="h-4 w-4" strokeWidth={1.5} />
+                  Filter
+                </button>
+              }
+              className="inline-flex relative"
+            />
+          </>
+        }
+        actionDefs={[
+          { key: "refresh", label: "Refresh", icon: <RefreshCw className="h-4 w-4" strokeWidth={1.5} />, onClick: handleRefresh },
+        ]}
+        // Bulk action icons render here — the exact slot the old "Reset"
+        // (trash-can) action used to occupy — only while at least one row
+        // is checked, per explicit request (none of these actions delete
+        // anything, so the trash icon was removed outright rather than
+        // reused for them). See `InteractionBulkActionIcons`'s own doc
+        // comment.
+        actions={
+          <>
+            {selectedIds.size > 0 && (
+              <InteractionBulkActionIcons
+                onAssignToMe={handleAssignToMe}
+                onAssignToOther={handleAssignToOther}
+                onAssignToSkill={handleAssignToSkill}
+                onChangeStatus={handleChangeStatus}
+                onSendMessage={handleSendMessage}
+              />
+            )}
+            <ColumnToggle
+              columns={INTERACTION_HISTORY_ALL_COLUMN_DEFS}
+              visibleColumns={visibleCols}
+              onVisibilityChange={setVisibleCols}
+            />
+          </>
+        }
+      />
 
       <div className="flex-1 min-h-0 overflow-auto px-6">
         <Table style={{ minWidth: tableMinWidth }}>
@@ -1016,7 +1046,13 @@ export function InteractionsListView({ onAddToast, onOpenInteraction }: Interact
               <TableRow
                 key={record.id}
                 className="group cursor-pointer"
-                data-state={selectedIds.has(record.id) ? "selected" : undefined}
+                // Either the bulk-actions checkbox selection OR this row
+                // being the one whose summary panel is currently open (see
+                // `activeRecordId`'s own doc comment above) shows the same
+                // `data-state="selected"` highlight `TableRow` already
+                // renders for checkbox selection — no new visual style
+                // needed, just a second condition feeding the existing one.
+                data-state={selectedIds.has(record.id) || activeRecordId === record.id ? "selected" : undefined}
                 onClick={() => onOpenInteraction?.(record)}
               >
                 <TableCell className="w-[40px] shrink-0" onClick={(e: React.MouseEvent) => e.stopPropagation()}>

@@ -34,9 +34,6 @@ import { OUTBOUND_CONFIG, OUTBOUND_CUSTOMERS } from "@/components/agent-next-gen
 import { type ContactInteraction } from "@/components/agent-next-gen-interaction-dashboard";
 import { CURRENT_AGENT_NAME, nextInteractionSortDirection } from "@/components/agent-next-gen-shared-utils";
 import { CHANNEL_TYPE_ICON_COLOR_CLASS } from "@/components/agent-next-gen-contact-history";
-import { SubmitSearchInput } from "@/components/agent-next-gen-submit-search-input";
-import { FiltersDropdownChip } from "@/components/agent-next-gen-filters-dropdown";
-import { useToolbarRowNarrow } from "@/components/agent-next-gen-use-toolbar-row-narrow";
 import { cn } from "@/lib/utils";
 import {
   Plus,
@@ -435,6 +432,7 @@ export function CustomerChannelPopoverButton({
   onStartInteraction,
   alwaysVisible = false,
   overlay = false,
+  size = "sm",
 }: {
   row: CustomerListRecord;
   channel: ChannelType;
@@ -465,6 +463,17 @@ export function CustomerChannelPopoverButton({
    *  opacity classes at all) because the icon never renders unless its
    *  parent overlay is already showing. */
   overlay?: boolean;
+  /** Forwarded straight through to the inner `ActionIconButton`'s own
+   *  `size` — per explicit request ("match the sizes of the channel
+   *  buttons to the size of the edit button"), `CustomerAddChannelButton`'s
+   *  wide-mode branch passes `"xs"` here (24px, matches lyra-ui `Button`
+   *  `size="sm"`'s own height — see that component's own doc comment on
+   *  its `xs` tier) so these icons line up with the Customer Overview
+   *  card's `size="sm"` Edit button sitting in the same row. Defaults to
+   *  `"sm"` (32px) — every other existing consumer (the Customers table's
+   *  own per-row hover icons, `CustomerChannelStack`'s overlay) is
+   *  unaffected. */
+  size?: "xs" | "sm";
 }) {
   const [open, setOpen] = useState(false);
   const meta = CHANNEL_ICON_META[channel];
@@ -478,7 +487,7 @@ export function CustomerChannelPopoverButton({
       onOpenChange={setOpen}
       trigger={
         <ActionIconButton
-          size="sm"
+          size={size}
           title={meta.label}
           aria-expanded={open}
           onClick={(e: React.MouseEvent<HTMLButtonElement>) => e.stopPropagation()}
@@ -614,9 +623,18 @@ export function CustomerAddChannelButton({
             open={openChannel === channel}
             onOpenChange={(open) => setOpenChannel(open ? channel : null)}
             trigger={
+              // `size="sm"` (was `"md"`) — per explicit request ("match the
+              // sizes of the channel buttons to the size of the edit
+              // button"), this wide-mode branch is now only ever rendered
+              // inside the Customer Overview card's own top row (see this
+              // component's own call site, agent-next-gen-customer-info-
+              // panel.tsx), right next to that card's `size="sm"` Edit
+              // button — matching height/label-scale here keeps the whole
+              // row reading as one consistent size, not Call standing out
+              // larger than its neighbors.
               <Button
                 variant="default"
-                size="md"
+                size="sm"
                 aria-expanded={openChannel === channel}
                 className="gap-1.5"
               >
@@ -633,6 +651,10 @@ export function CustomerAddChannelButton({
             available={available}
             onStartInteraction={onStartInteraction}
             alwaysVisible
+            // `"xs"` (24px) — same reasoning as the Call button's own
+            // `size="sm"` swap just above: matches the Customer Overview
+            // card's `size="sm"` Edit button sitting in the same row.
+            size="xs"
           />
         )
       )}
@@ -807,10 +829,12 @@ export const CUSTOMER_ALL_COLUMN_DEFS: { key: string; label: string }[] = Object
 );
 export const CUSTOMER_ALL_COLUMN_KEYS = Object.keys(CUSTOMER_COLUMN_CONFIG) as CustomerColKey[];
 
-// Every filterable field on `CUSTOMER_LIST_RECORDS` — all always render as
-// live `FilterChip`s in the toolbar (`CustomersListView`'s own `filterDefs`),
-// per explicit request; there's no add-menu picking a subset any more (see
-// `addedFilterKeys`'s own doc comment in `CustomersListView`).
+// Every field the "+ Filter" add-filter menu can offer — real, filterable
+// fields on `CUSTOMER_LIST_RECORDS` (not decoration), in the same order as
+// the reference "Add Filter" list this was built from. Picking one from the
+// menu is what actually adds it as a live `FilterChip` in the toolbar (see
+// `addedFilterKeys` in `CustomersListView`) — this array only lists what's
+// *available* to add, not what's currently active.
 export const CUSTOMER_FILTER_FIELD_DEFS: { key: CustomerFilterKey; label: string }[] = [
   { key: "contactNumber", label: "Customer ID" },
   { key: "originalCustomerId", label: "Original customer ID" },
@@ -840,6 +864,8 @@ export const CUSTOMER_FILTER_VALUE_OPTIONS: Record<CustomerFilterKey, FilterChip
 
 export function CustomersListView({
   onStartInteraction,
+  addedFilterKeys,
+  onAddedFilterKeysChange,
   filterValues,
   onFilterValuesChange,
   onRowClick,
@@ -852,28 +878,16 @@ export function CustomersListView({
   openRowId,
   leadingChannelStack = false,
   isRowOpen,
-  viewsControl,
 }: {
   onStartInteraction: (contact: CreateNewOutboundContact, channel: ChannelType, phone: string, skillId: string) => void;
-  // `addedFilterKeys`/`onAddedFilterKeysChange` used to gate which fields
-  // rendered as `filterDefs` (a "+ Filter" add-menu the agent had to use
-  // before a field showed up at all). Per explicit follow-up request
-  // ("display all the filters in line with the search... don't force them
-  // to add filters with the check boxes" — same fix already applied to
-  // `InteractionsListView`/Contacts), `filterDefs` below now always
-  // includes every field and there's no add-menu any more, so this
-  // component no longer reads either prop — kept in the type/lifted in
-  // each page's own state only so every existing call site here keeps
-  // compiling unchanged; safe to drop from both once nothing else needs
-  // that lifted state either.
-  addedFilterKeys: string[];
-  onAddedFilterKeysChange: (keys: string[]) => void;
   // Filter state is a controlled prop, not local `useState`, so it lives on
   // (and survives) `AgentNextGenPage` itself instead of resetting every
   // time this component unmounts — which happens on every navigation away
   // from the Desk dashboard (an active interaction, Settings), not just
   // when switching between desk tabs. See the state's own declaration
   // comment in `AgentNextGenPage` for the full explanation.
+  addedFilterKeys: string[];
+  onAddedFilterKeysChange: (keys: string[]) => void;
   filterValues: Record<string, string[]>;
   onFilterValuesChange: (values: Record<string, string[]>) => void;
   /** Opens `CustomerRowInfoPanel` for the clicked row — lifted up to
@@ -944,29 +958,6 @@ export function CustomersListView({
    * that call site).
    */
   isRowOpen?: (row: CustomerListRecord) => boolean;
-  /**
-   * Per explicit request ("substitute a dropdown in place of the search —
-   * can you do that without modifying the component?", later widened to
-   * "move the filters above the line ... before the search is
-   * implemented"): when provided, this table's filter UI moves out of the
-   * toolbar entirely — no search box, no `filterDefs` chips, no
-   * "+ Filter" add-menu — leaving just this node (rendered where the
-   * search field used to be) plus the unrelated `actionDefs`/`actions`
-   * (Refresh, New Customer, `ColumnToggle`). Real, documented mechanism,
-   * not a CSS hack: every one of `TableToolbar`'s own `searchQuery`/
-   * `onSearchChange`/`filterDefs`/`filterValues`/`onFilterChange`/
-   * `onFilterClear` props is independently optional — omitting all of
-   * them is the real way to get a toolbar with none of that, not a value
-   * fed into pieces that still render. The caller is then expected to
-   * render its own filter chips elsewhere using the `filterValues`/
-   * `onFilterValuesChange` props above directly (already fully lifted/
-   * controlled for every consumer, unlike `InteractionsListView`'s own
-   * equivalent). Omit entirely (default) for the toolbar's normal, fully
-   * self-contained real search+filter row, unchanged — only Agent
-   * Workspace Advanced's own Search panel (agent-next-gen-search-
-   * advanced.tsx) passes this today.
-   */
-  viewsControl?: React.ReactNode;
 }) {
   // `"channels"` is dropped from the column system entirely in
   // `leadingChannelStack` mode — it's no longer a normal column at all
@@ -980,31 +971,24 @@ export function CustomersListView({
     : CUSTOMER_ALL_COLUMN_DEFS;
   const [visibleCols, setVisibleCols] = useState<Set<string>>(new Set(columnKeys));
 
-  // Per explicit request — this table searches a (simulated) ~50k-record
-  // database, so filtering shouldn't re-run on every keystroke. `searchQuery`/
-  // `onSearchChange` above stay the real, lifted, "actually filters"
-  // committed value (unchanged prop contract — nothing else in the page
-  // ever resets it out from under this component while mounted); this local
-  // `searchDraft` is what the field itself actually displays/types into,
-  // synced from the committed value once on mount. `onSearchChange` (the
-  // prop) now only ever gets called from `SubmitSearchInput`'s own
-  // `onSubmit` below — Enter, its arrow button, or its clear button — never
-  // on every keystroke. See that component's own top-of-file doc comment
-  // for the fuller reasoning (same fix as `InteractionsListView`'s own).
-  const [searchDraft, setSearchDraft] = useState(searchQuery);
-
-  // Always every field — per explicit request, nothing is gated behind a
-  // "+ Filter" add-menu any more (see `addedFilterKeys`'s own doc comment
-  // above); `TableToolbar` renders these as `FilterChip`s inline next to
-  // Search and collapses whichever don't fit into its own "+N" overflow
-  // automatically.
-  const filterDefs = CUSTOMER_FILTER_FIELD_DEFS.map((def) => ({
-    key: def.key,
-    label: def.label,
-    options: CUSTOMER_FILTER_VALUE_OPTIONS[def.key],
-  }));
+  // Which fields the agent has actually added via the "+ Filter" menu below
+  // — only these get rendered as live `FilterChip`s / applied to `filtered`.
+  // Starts empty (in the lifted state's own initializer): no filter is
+  // active until the agent explicitly adds one, matching the reference
+  // "Add Filter" menu this was built from.
+  const filterDefs = addedFilterKeys.map((key) => {
+    const def = CUSTOMER_FILTER_FIELD_DEFS.find((f) => f.key === key)!;
+    return { key: def.key, label: def.label, options: CUSTOMER_FILTER_VALUE_OPTIONS[def.key] };
+  });
   const handleFilterChange = (key: string, values: string[]) => onFilterValuesChange({ ...filterValues, [key]: values });
   const clearAllFilters = () => onFilterValuesChange({});
+  // Adding/removing a field from the "+ Filter" menu — removing one also
+  // drops its stored selected values, so re-adding it later starts fresh
+  // instead of resurrecting a stale selection nobody can see in the meantime.
+  const handleAddedFiltersChange = (keys: string[]) => {
+    onAddedFilterKeysChange(keys);
+    onFilterValuesChange(Object.fromEntries(Object.entries(filterValues).filter(([k]) => keys.includes(k))));
+  };
 
   const { columnOrder: allColumnOrder, dragOverKey, dragHandlers } = useColumnReorder<CustomerColKey>(
     columnKeys
@@ -1051,13 +1035,6 @@ export function CustomersListView({
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [rowsPerPage, totalPages, currentPage]);
 
-  // Per explicit request ("the row for search, filters and controls should
-  // be responsive... same responsiveness as depicted in lyra-ui") — see
-  // agent-next-gen-use-toolbar-row-narrow.ts's own top doc comment for the
-  // full reasoning behind measuring this row itself rather than relying on
-  // `TableToolbar`'s own internal `isNarrow`.
-  const { ref: toolbarRowRef, isNarrow: toolbarRowNarrow } = useToolbarRowNarrow();
-
   return (
     // `min-w-0 overflow-hidden` — this is a flex ITEM inside the Desk
     // body's row container (`<div className="relative flex flex-1
@@ -1066,116 +1043,68 @@ export function CustomersListView({
     // Matches the sibling Dashboard-tab column's own `min-w-0` a few
     // lines below in this same file.
     <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
-      {/* `SubmitSearchInput` and `TableToolbar` as flex SIBLINGS in one row
-          (not `TableToolbar`'s own built-in search box — see
-          `SubmitSearchInput`'s own top-of-file doc comment for why) —
-          `TableToolbar` renders its own filters+actions as one already-
-          flush row when no search props are passed (`hasSearch` false), so
-          putting our own search box beside it here, both sharing this
-          wrapper's own `px-6 py-3`/`gap-2` (removed from `TableToolbar`'s
-          own className below so it doesn't double up), reconstructs the
-          original single-row search+filters+actions layout almost exactly,
-          still without touching `TableToolbar` itself.
-          `toolbarRowNarrow` (agent-next-gen-use-toolbar-row-narrow.ts) —
-          per explicit request ("the row for search, filters and controls
-          should be responsive... same responsiveness as depicted in
-          lyra-ui") — switches this row to a full-width stack (search alone
-          on top, `TableToolbar` alone below it) once genuinely narrow,
-          mirroring `TableToolbar`'s own real "no title" narrow layout
-          (table.tsx): search occupies its own full row there too, with
-          filters+actions wrapping to a shared row beneath it — a shape
-          that can't happen while search and `TableToolbar` are jammed
-          side by side as fixed-width flex siblings, regardless of how
-          either one's own width is constrained.
-          `SubmitSearchInput` itself is omitted entirely whenever
-          `viewsControl` is provided, same as the search box it
-          replaces — see that prop's own doc comment. */}
-      <div
-        ref={toolbarRowRef}
-        className={cn("flex gap-2 px-6 py-3", toolbarRowNarrow ? "flex-col items-stretch" : "items-center")}
-      >
-        {!viewsControl && (
-          <SubmitSearchInput
-            value={searchDraft}
-            onValueChange={setSearchDraft}
-            onSubmit={onSearchChange}
-            placeholder="Search"
-            // `flex-1 min-w-[240px] max-w-[320px]` when side by side — the
-            // exact sizing class `TableToolbar`'s own real `SearchInput`
-            // uses in both its layouts (table.tsx), not the rigid
-            // `shrink-0` this used to have (it refused to give up any of
-            // its own space as the row narrowed, squeezing `TableToolbar`'s
-            // sibling portion disproportionately thin instead of sharing
-            // the shrinkage). `w-full` once `toolbarRowNarrow` — the row is
-            // now a column stack, so search should span it the same way
-            // `TableToolbar`'s own narrow-layout search row does.
-            className={toolbarRowNarrow ? "w-full" : "flex-1 min-w-[240px] max-w-[320px]"}
+      <TableToolbar
+        className="px-6"
+        searchQuery={searchQuery}
+        onSearchChange={onSearchChange}
+        filterDefs={filterDefs}
+        filterValues={filterValues}
+        onFilterChange={handleFilterChange}
+        onFilterClear={clearAllFilters}
+        // The "+ Filter" add-menu itself — `TableToolbar`'s own `filters`
+        // slot renders right alongside the `filterDefs`-driven chips above
+        // (table.tsx: filterChips, then filters, then the Clear button),
+        // exactly where FilterChip.stories.tsx's own "Removable" demo
+        // places this same trigger. Composed from `Select`
+        // (multiple/searchable/showSelectAll, a custom "+ Filter" trigger
+        // instead of its default text box) rather than lyra-ui's
+        // `FilterChip` itself — `FilterChip` renders ONE already-added
+        // filter's value picker; this is the separate "pick which fields
+        // are active at all" control that decides what shows up in
+        // `filterDefs` in the first place, same distinction
+        // FilterChip.stories.tsx's own demo draws between its per-filter
+        // chips and this single add-menu.
+        filters={
+          <Select
+            options={CUSTOMER_FILTER_FIELD_DEFS.map((f) => ({ value: f.key, label: f.label }))}
+            multiple
+            searchable
+            showSelectAll
+            dropdownAlign="left"
+            values={addedFilterKeys}
+            onValuesChange={handleAddedFiltersChange}
+            trigger={
+              <button
+                type="button"
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lyra-sm lyra-label transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lyra-border-focus focus-visible:ring-offset-2 border border-lyra-border-soft bg-lyra-bg-control text-lyra-fg-action hover:bg-lyra-state-hover active:bg-lyra-state-pressed h-8 px-3"
+              >
+                <Plus className="h-4 w-4" strokeWidth={1.5} />
+                Filter
+              </button>
+            }
+            className="inline-flex relative"
           />
-        )}
-        <TableToolbar
-          // `gap-0` (overrides `TableToolbar`'s own base `gap-2`) — with no
-          // `searchQuery`/`onSearchChange` (search lives in our own sibling
-          // above instead), `TableToolbar` still unconditionally renders its
-          // row-1 wrapper div even though nothing inside it ever has content
-          // here (`hasSearch` is false and `hasFilters && !isNarrow` is
-          // false too, in this always-narrower-than-768px docked-panel
-          // context) — an empty div, but `flex-col gap-2`'s gap still
-          // applies between it and row 2 (the actual `isNarrow` filters+
-          // actions row), pushing that visible row 8px lower than our
-          // search box sitting right beside it. Safe to zero out `gap-2`
-          // unconditionally here (kept even once `toolbarRowNarrow`, below
-          // — `TableToolbar`'s OWN internal `isNarrow` is measured off its
-          // own width, which can independently land on either side of ITS
-          // 768px threshold even while stacked full-width under our own,
-          // larger threshold — see agent-next-gen-use-toolbar-row-narrow.ts):
-          // for this component's actual configuration (search always
-          // external), at most one of `TableToolbar`'s two internal rows
-          // ever has real content at a time regardless of which of the two
-          // thresholds is in play, so the gap between them never needs to
-          // do anything. `w-full` once `toolbarRowNarrow` — see the row
-          // wrapper's own doc comment above.
-          className={cn("py-0 gap-0", toolbarRowNarrow ? "w-full" : "flex-1 min-w-0")}
-          // No `filterDefs`/`filterValues`/`onFilterChange`/`onFilterClear`
-          // here — per explicit follow-up request ("make the filters a
-          // single chip that says 'filters'... display a dropdown of the
-          // filters as if they were in responsive collapsed mode"), the
-          // inline chip-row + "+N" overflow this would otherwise auto-render
-          // is replaced by `FiltersDropdownChip` below instead, passed
-          // through `filters` — `TableToolbar`'s own `hasFilters` is
-          // `filterChips || filters || showAdvancedSearch`, so a real node
-          // in `filters` alone keeps it correctly treating this toolbar as
-          // having filters, with no native chip-row left to conflict with
-          // it. `viewsControl`, when provided, still fully replaces this
-          // (see that prop's own doc comment) rather than showing both.
-          filters={viewsControl ?? (
-            <FiltersDropdownChip
-              filterDefs={filterDefs}
-              filterValues={filterValues}
-              onFilterChange={handleFilterChange}
-              onFilterClear={clearAllFilters}
-            />
-          )}
-          actionDefs={[
-            { key: "refresh", label: "Refresh", icon: <RefreshCw className="h-4 w-4" strokeWidth={1.5} /> },
-            // Per explicit request, with a screenshot of the lucide "user-plus"
-            // icon: "update the icon for new customers to be user-plus instead
-            // of just + to avoid confusion with launching new interactions."
-            // This was previously a plain `Plus`, visually identical to every
-            // "launch a new interaction" trigger elsewhere in the app (e.g.
-            // `CreateNew`'s "New Outbound" button, `AddChannelAdHocButton`),
-            // making this toolbar button easy to misread as one of those
-            // rather than as customer creation specifically.
-            { key: "new", label: "New Customer", icon: <UserPlus className="h-4 w-4" strokeWidth={1.5} /> },
-          ]}
-          actions={
-            <ColumnToggle
-              columns={columnDefs}
-              visibleColumns={visibleCols}
-              onVisibilityChange={setVisibleCols}
-            />
-          }
-        />
-      </div>
+        }
+        actionDefs={[
+          { key: "refresh", label: "Refresh", icon: <RefreshCw className="h-4 w-4" strokeWidth={1.5} /> },
+          // Per explicit request, with a screenshot of the lucide "user-plus"
+          // icon: "update the icon for new customers to be user-plus instead
+          // of just + to avoid confusion with launching new interactions."
+          // This was previously a plain `Plus`, visually identical to every
+          // "launch a new interaction" trigger elsewhere in the app (e.g.
+          // `CreateNew`'s "New Outbound" button, `AddChannelAdHocButton`),
+          // making this toolbar button easy to misread as one of those
+          // rather than as customer creation specifically.
+          { key: "new", label: "New Customer", icon: <UserPlus className="h-4 w-4" strokeWidth={1.5} /> },
+        ]}
+        actions={
+          <ColumnToggle
+            columns={columnDefs}
+            visibleColumns={visibleCols}
+            onVisibilityChange={setVisibleCols}
+          />
+        }
+      />
 
       <div className="flex-1 min-h-0 overflow-auto px-6">
         <Table style={{ minWidth: tableMinWidth }}>

@@ -8,7 +8,7 @@ import { type AppMenuGroup, type CreateNewOutboundConfig, type CreateNewOutbound
 import { CREATE_NEW_AGENTS } from "@nicecxone/lyra-ui/agents-data";
 import { CREATE_NEW_CUSTOMERS } from "@nicecxone/lyra-ui/customers-data";
 import type { ReactNode } from "react";
-import { Phone, Mail, MessageSquare, MessageCircle, User, Headphones, Share2, Users, LayoutGrid } from "lucide-react";
+import { Phone, Mail, MessageSquare, MessageCircle, User, Headphones, Share2, Users, LayoutGrid, Star, Building2 } from "lucide-react";
 
 /* ── Category icons ──
    Shared between the "New Outbound" picker's "Choose group" dropdown
@@ -38,33 +38,57 @@ const customerCategoryIcon = () => <User className="h-4 w-4" strokeWidth={1.5} /
 // shared JSX constant) for the same one-element-per-render-site reason
 // as the four category icons above.
 const dialpadCategoryIcon = () => <LayoutGrid className="h-4 w-4" strokeWidth={1.5} />;
+// Favorites' own icon — a star, matching the concept everywhere else in
+// this app already uses one (`FavoriteButton`, lyra-ui) — per explicit
+// follow-up request giving every row in the group list a leading icon.
+const favoritesCategoryIcon = () => <Star className="h-4 w-4" strokeWidth={1.5} />;
+// Generic "directory" icon shared by the three placeholder groups below
+// (Partner Network/Vendor Directory/Regional Offices) — per explicit
+// request ("generic directory icons"), not a distinct glyph per group,
+// since none of the three has real data/behavior behind it yet to
+// differentiate visually (see their own `kind: "empty"` doc comment).
+// A generic building glyph reads as "some other organization/location,"
+// which fits all three equally well without implying one has more
+// substance than the others.
+const directoryCategoryIcon = () => <Building2 className="h-4 w-4" strokeWidth={1.5} />;
 
-/** Wraps a bare category icon in the same colored circle shell lyra-ui's
- *  own `ListItem` "With leading icon" story hand-builds for each of its
- *  demo rows (`h-9 w-9 rounded-full ... flex items-center justify-center
- *  ...`, ListItem.stories.tsx) — per explicit request, `CreateNewContact.
- *  categoryIcon` (create-new.tsx) reuses that exact treatment rather than
- *  a bare icon sitting inline with the contact's name. One color pair per
- *  category, each an existing token already used elsewhere in this app/
- *  design system (not invented for this): blue "active" for Agents, green
- *  "success" for Skills, purple "accent" for Teams (the same token
- *  `OUTBOUND_TEAMS`'s own `t1` avatar already uses, below), and neutral
- *  "surface shell" gray for Customers. */
-function categoryLeadingIcon(icon: ReactNode, bgClassName: string, textClassName: string): ReactNode {
+/** Per explicit follow-up request ("put the initials of the agents/skill
+ *  names/etc. inside the avatars and randomize the colors using the
+ *  lyra-ui color tokens"): the per-CONTACT leading avatar (`CreateNewContact.
+ *  categoryIcon`) renders that record's own `initials` as text inside a
+ *  `h-9 w-9 rounded-full` shell — the same shell lyra-ui's own `ListItem`
+ *  "With leading icon" story hand-builds for each of its demo rows
+ *  (`ListItem.stories.tsx`), colored by `avatarClassName` — a
+ *  `bg-lyra-accent-{color}-soft text-lyra-accent-{color}-strong` pair
+ *  already varied per record (`CREATE_NEW_AGENTS`/`CREATE_NEW_CUSTOMERS`,
+ *  lyra-ui's own fixtures, cycle through 10 real lyra-ui accent tokens;
+ *  `OUTBOUND_TEAMS`/`OUTBOUND_SKILLS` below set their own per-record pair
+ *  the same way) — rather than one fixed glyph/color shared by every
+ *  record in a category, which made a mixed list (e.g. the "All"/
+ *  favorites group) visually indistinguishable row-to-row within the same
+ *  category. `lyra-label` matches `AgentProfile`'s own `Avatar` component's
+ *  initials treatment (agent-profile.tsx) — `avatarClassName` supplies the
+ *  text color itself, so this only adds the size/weight. */
+function initialsAvatar(initials: string, avatarClassName: string): ReactNode {
   return (
-    <div className={`h-9 w-9 rounded-full ${bgClassName} flex items-center justify-center ${textClassName}`}>
-      {icon}
+    <div className={`h-9 w-9 rounded-full ${avatarClassName} flex items-center justify-center lyra-label`}>
+      {initials}
     </div>
   );
 }
-const agentCategoryLeadingIcon = () =>
-  categoryLeadingIcon(agentCategoryIcon(), "bg-lyra-bg-active-subtle", "text-lyra-fg-active-strong");
-const teamCategoryLeadingIcon = () =>
-  categoryLeadingIcon(teamCategoryIcon(), "bg-lyra-accent-purple-soft", "text-lyra-accent-purple-strong");
-const skillCategoryLeadingIcon = () =>
-  categoryLeadingIcon(skillCategoryIcon(), "bg-lyra-status-success-subtle", "text-lyra-status-success-strong");
-const customerCategoryLeadingIcon = () =>
-  categoryLeadingIcon(customerCategoryIcon(), "bg-lyra-bg-surface-shell", "text-lyra-fg-secondary");
+
+// Same 10 lyra-ui accent tokens `CREATE_NEW_AGENTS`/`CREATE_NEW_CUSTOMERS`
+// (lyra-ui's own fixtures) already cycle through for their own
+// `avatarClassName` — reused here for the few records in THIS file that
+// don't come from one of those fixtures (currently just
+// `contactHistoryOutboundContact` below) and so have no `avatarClassName`
+// of their own to reuse, so they still get a real, varied color instead of
+// one hardcoded shade repeated for every row.
+const OUTBOUND_AVATAR_COLORS = ["blue", "orange", "teal", "purple", "green", "red", "pink", "yellow", "lime", "slate"];
+function randomAvatarClassName(seed: string): string {
+  const color = OUTBOUND_AVATAR_COLORS[hashSeed(seed) % OUTBOUND_AVATAR_COLORS.length];
+  return `bg-lyra-accent-${color}-soft text-lyra-accent-${color}-strong`;
+}
 
 /* ── App menu builder (needs onNavigate so built inside the component) ── */
 
@@ -133,7 +157,12 @@ export const OUTBOUND_AGENTS: NonNullable<CreateNewOutboundConfig["groups"][numb
   id: a.id,
   name: a.name,
   initials: initialsFor(a.name),
-  subtitle: a.agentId,
+  // Per explicit follow-up request: the row subhead is now this agent's
+  // job title ("Support Agent"/"Team Supervisor") rather than the raw
+  // `agentId` — reads as "who is this person" at a glance, matching a
+  // reference mockup. `agentId` itself is untouched elsewhere (still each
+  // agent's own real internal identifier), just no longer surfaced here.
+  subtitle: a.role,
   avatarClassName: a.avatarClassName,
   // Per explicit request: an agent is only reachable by Voice or Chat from
   // this picker — overrides whatever `CREATE_NEW_AGENTS` itself lists (that
@@ -146,13 +175,20 @@ export const OUTBOUND_AGENTS: NonNullable<CreateNewOutboundConfig["groups"][numb
   // `OUTBOUND_CONFIG.channelOptions`'s new `"chat"` entry below.
   channels: ["voice", "chat"],
   status: a.status,
-  // Per explicit request: same headset icon the "Choose group" dropdown's
-  // own "Agents" row uses (`OUTBOUND_GROUPS` below), now also shown to the
-  // left of EACH agent's name — matters most in the "All"/favorites group,
-  // which mixes agents/teams/skills/customers in one list with no group
-  // heading between them (see `CreateNewContact.categoryIcon`'s own doc
-  // comment, create-new.tsx).
-  categoryIcon: agentCategoryLeadingIcon(),
+  // Per follow-up request, this is now an initials avatar (this agent's own
+  // `avatarClassName`, already one of 10 randomized lyra-ui accent tokens
+  // per `CREATE_NEW_AGENTS`) rather than a shared headset-glyph circle —
+  // see `initialsAvatar`'s own doc comment above for why. Still shown to
+  // the left of EACH agent's name — matters most in the "All"/favorites
+  // group, which mixes agents/teams/skills/customers in one list with no
+  // group heading between them (see `CreateNewContact.categoryIcon`'s own
+  // doc comment, create-new.tsx).
+  categoryIcon: initialsAvatar(initialsFor(a.name), a.avatarClassName),
+  // Per explicit follow-up request: the plain (uncircled) headset glyph
+  // that used to fill `categoryIcon` before it became an initials avatar
+  // now sits inline next to the name instead — see `CreateNewContact.
+  // typeIcon`'s own doc comment, create-new.tsx.
+  typeIcon: agentCategoryIcon(),
   // Per explicit request: calling/chatting an agent skips the "Select
   // Phone"/"Outbound Skill" detail screen entirely and launches
   // immediately — an agent has no real per-contact address to choose
@@ -189,8 +225,10 @@ export const OUTBOUND_CUSTOMERS: NonNullable<CreateNewOutboundConfig["groups"][n
     const { firstName, lastName } = splitCustomerName(c.name);
     return `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`;
   })(),
-  // See `OUTBOUND_AGENTS`'s own identical `categoryIcon` comment above.
-  categoryIcon: customerCategoryLeadingIcon(),
+  // See `OUTBOUND_AGENTS`'s own identical `categoryIcon`/`typeIcon` comments
+  // above.
+  categoryIcon: initialsAvatar(initialsFor(c.name), c.avatarClassName),
+  typeIcon: customerCategoryIcon(),
 }));
 
 /** One `CreateNewOutboundContact` for a single hand-authored `CONTACT_HISTORY`
@@ -205,12 +243,17 @@ export const OUTBOUND_CUSTOMERS: NonNullable<CreateNewOutboundConfig["groups"][n
  *  synthesis for that same card (both key off the same seed). */
 function contactHistoryOutboundContact(entry: ContactHistoryEntry, id: string): CreateNewOutboundContact {
   const { firstName, lastName } = splitCustomerName(entry.name);
+  // Per follow-up request, randomized (not one hardcoded shade for every
+  // entry) — deterministic off `entry.caseId`, same `randomAvatarClassName`
+  // rotation the rest of this file uses for records with no fixture-
+  // provided `avatarClassName` of their own.
+  const avatarClassName = randomAvatarClassName(entry.caseId);
   return {
     id,
     name: entry.name,
     initials: initialsFor(entry.name),
     subtitle: entry.caseId,
-    avatarClassName: "bg-lyra-accent-slate-soft text-lyra-accent-slate-strong",
+    avatarClassName,
     channels: entry.channels ?? [],
     primaryPhone: {
       value: synthesizePhone(hashSeed(entry.caseId)),
@@ -218,8 +261,10 @@ function contactHistoryOutboundContact(entry: ContactHistoryEntry, id: string): 
     },
     email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`,
     // Every `ContactHistoryEntry` represents a past CUSTOMER contact — see
-    // `OUTBOUND_AGENTS`'s own identical `categoryIcon` comment above.
-    categoryIcon: customerCategoryLeadingIcon(),
+    // `OUTBOUND_AGENTS`'s own identical `categoryIcon`/`typeIcon` comments
+    // above.
+    categoryIcon: initialsAvatar(initialsFor(entry.name), avatarClassName),
+    typeIcon: customerCategoryIcon(),
   };
 }
 
@@ -282,8 +327,8 @@ export const CONTACT_HISTORY_OUTBOUND_CONTACTS: NonNullable<CreateNewOutboundCon
 
 export const OUTBOUND_TEAMS: NonNullable<CreateNewOutboundConfig["groups"][number]["contacts"]> = [
   // See `OUTBOUND_AGENTS`'s own identical `categoryIcon` comment above.
-  { id: "t1", name: "Billing Support",    initials: "BS", subtitle: "TEAM-04", avatarClassName: "bg-lyra-accent-purple-soft text-lyra-accent-purple-strong", channels: ["voice", "email"], categoryIcon: teamCategoryLeadingIcon() },
-  { id: "t2", name: "Tier 2 Escalations", initials: "T2", subtitle: "TEAM-07", avatarClassName: "bg-lyra-accent-red-soft text-lyra-accent-red-strong",       channels: ["voice", "email"], categoryIcon: teamCategoryLeadingIcon() },
+  { id: "t1", name: "Billing Support",    initials: "BS", subtitle: "TEAM-04", avatarClassName: "bg-lyra-accent-purple-soft text-lyra-accent-purple-strong", channels: ["voice", "email"], categoryIcon: initialsAvatar("BS", "bg-lyra-accent-purple-soft text-lyra-accent-purple-strong"), typeIcon: teamCategoryIcon() },
+  { id: "t2", name: "Tier 2 Escalations", initials: "T2", subtitle: "TEAM-07", avatarClassName: "bg-lyra-accent-red-soft text-lyra-accent-red-strong",       channels: ["voice", "email"], categoryIcon: initialsAvatar("T2", "bg-lyra-accent-red-soft text-lyra-accent-red-strong"), typeIcon: teamCategoryIcon() },
 ];
 
 // Deterministic (no Math.random) per-team agent roster for the Teams
@@ -307,8 +352,8 @@ export const OUTBOUND_SKILLS: NonNullable<CreateNewOutboundConfig["groups"][numb
   // See `OUTBOUND_AGENTS`'s own identical `categoryIcon`/`quickLaunch`
   // comments above — a skill queue has no real per-contact address to
   // choose either, so it gets the same immediate-launch treatment.
-  { id: "s1", name: "Spanish Language",  initials: "ES", subtitle: "SKL-12", avatarClassName: "bg-lyra-accent-green-soft text-lyra-accent-green-strong", channels: ["voice", "email"], status: "available", queueCount: 4, waitTimeSeconds: 200, categoryIcon: skillCategoryLeadingIcon(), quickLaunch: true },
-  { id: "s2", name: "Technical Support", initials: "TS", subtitle: "SKL-03", avatarClassName: "bg-lyra-accent-blue-soft text-lyra-accent-blue-strong",   channels: ["voice", "email"], status: "busy",      queueCount: 7, waitTimeSeconds: 95, categoryIcon: skillCategoryLeadingIcon(), quickLaunch: true },
+  { id: "s1", name: "Spanish Language",  initials: "ES", subtitle: "SKL-12", avatarClassName: "bg-lyra-accent-green-soft text-lyra-accent-green-strong", channels: ["voice", "email"], status: "available", queueCount: 4, waitTimeSeconds: 200, categoryIcon: initialsAvatar("ES", "bg-lyra-accent-green-soft text-lyra-accent-green-strong"), typeIcon: skillCategoryIcon(), quickLaunch: true },
+  { id: "s2", name: "Technical Support", initials: "TS", subtitle: "SKL-03", avatarClassName: "bg-lyra-accent-blue-soft text-lyra-accent-blue-strong",   channels: ["voice", "email"], status: "busy",      queueCount: 7, waitTimeSeconds: 95, categoryIcon: initialsAvatar("TS", "bg-lyra-accent-blue-soft text-lyra-accent-blue-strong"), typeIcon: skillCategoryIcon(), quickLaunch: true },
 ];
 
 // Every group the "New Outbound" flow could show — kept as its own named
@@ -337,50 +382,68 @@ export const OUTBOUND_GROUPS: CreateNewOutboundConfig["groups"] = [
   // contact" once nothing's favorited yet, no "No favorites yet —"
   // prefix (that phrasing read like an error/apology for something
   // missing, when the real point is just "type to search").
-  { id: "all", label: "All", kind: "favorites", emptyMessage: "Search above to find a contact" },
-  // Per explicit request: each group below gets a leading icon in the
-  // "Choose group" dropdown (`CreateNewOutboundGroup.icon`, lyra-ui's
-  // create-new.tsx), matched to what that group represents — a headset for
-  // Agents (support), a people-group for Teams, a share/network glyph for
-  // Skills, and a single person for Customers. `h-4 w-4` here is purely
-  // defensive/self-documenting — `Select`'s own icon slot already forces
-  // every option icon to that size (select.tsx) regardless of what's
-  // authored on the element itself. "All" (above) intentionally has no
-  // icon — it wasn't part of the requested set, and the plain "All" row
-  // reads fine unadorned as the default/catch-all option. "Dial Pad"
-  // (below) DOES have its own icon (`dialpadCategoryIcon`) despite never
-  // reaching this same dropdown — see that group's own doc comment.
-  { id: "agents", label: "Agents", contacts: OUTBOUND_AGENTS, icon: agentCategoryIcon() },
-  { id: "teams", label: "Teams", contacts: OUTBOUND_TEAMS, icon: teamCategoryIcon() },
-  { id: "skills", label: "Skills", contacts: OUTBOUND_SKILLS, icon: skillCategoryIcon() },
-  { id: "customers", label: "Customers", contacts: OUTBOUND_CUSTOMERS, icon: customerCategoryIcon() },
-  // No longer hidden via `HIDDEN_OUTBOUND_GROUP_IDS` (see that constant's
-  // updated doc comment below) — per explicit follow-up request, this
-  // group is reachable again, just via a small ghost button below the
-  // "Choose group" Select instead of a dropdown entry. lyra-ui's own
-  // create-new.tsx filters `kind === "dialpad"` out of the Select's
-  // `options` specifically (not this array), so this group still flows
-  // through to `outbound.groups` for that ghost button (and
-  // `activeGroup`/`onQuickDial`/`handleQuickDial` below) to find, it just
-  // never appears as a Select option. `icon` now set (`dialpadCategoryIcon`)
-  // so the ghost button renders the same grid glyph the reference mockup
-  // showed, reusing the group's own icon like every other group already
-  // does rather than hardcoding one in create-new.tsx.
+  // Per a later explicit request, Dial Pad is now the FIRST row in this
+  // list (it used to sit last, reachable only via its own separate ghost
+  // button below the list — see that entry's own doc comment for how
+  // that changed) — moved here in `OUTBOUND_GROUPS` itself, not
+  // special-cased in create-new.tsx, since that component already
+  // renders every entry in whatever order `outbound.groups` defines,
+  // Dial Pad included now that it's just another row.
   { id: "dialpad", label: "Dial Pad", kind: "dialpad", icon: dialpadCategoryIcon() },
+  // Per a later explicit request (the "Choose group" `Select` was
+  // replaced with an always-visible list of rows, lyra-ui's create-new.tsx
+  // — see that list's own doc comment), this entry's label is "Favorites"
+  // again, matching the reference mockup's own top row exactly — with a
+  // real list of rows to read top-to-bottom, a plain "All" no longer makes
+  // sense as a label sitting alongside "Agents"/"Skills"/etc. `id`/`kind`/
+  // `defaultGroupId` (below) are unchanged, so this is still the DEFAULT/
+  // starting filter, just relabeled.
+  { id: "all", label: "Favorites", kind: "favorites", emptyMessage: "Search above to find a contact", icon: favoritesCategoryIcon() },
+  // Per explicit request: each group below gets a leading icon in the
+  // group list (`CreateNewOutboundGroup.icon`, lyra-ui's create-new.tsx),
+  // matched to what that group represents — a headset for Agents
+  // (support), a share/network glyph for Skills, a people-group for My
+  // Team. `h-4 w-4` here is purely defensive/self-documenting — that list's
+  // own icon slot already forces every option icon to that size regardless
+  // of what's authored on the element itself. Reordered per the reference
+  // mockup: Skills now comes before "My Team" (previously "Teams," see
+  // that entry's own doc comment), which used to sit right after Agents.
+  { id: "agents", label: "Agents", contacts: OUTBOUND_AGENTS, icon: agentCategoryIcon() },
+  { id: "skills", label: "Skills", contacts: OUTBOUND_SKILLS, icon: skillCategoryIcon() },
+  // Relabeled "Teams" → "My Team" per the reference mockup — `id`
+  // deliberately left as `"teams"` (not renamed to match) since the Teams
+  // group picker/member-roster wiring elsewhere in this app
+  // (AgentNextGenPage.tsx et al.) already keys off this exact id; renaming
+  // it here would silently break that wiring for a label-only request.
+  { id: "teams", label: "My Team", contacts: OUTBOUND_TEAMS, icon: teamCategoryIcon() },
+  // Three brand-new categories from the reference mockup with no real
+  // contact data or action behind them yet (per explicit follow-up
+  // clarification: "empty placeholder groups") — `kind: "empty"` is the
+  // exact mechanism `create-new.tsx` already has for this (see that
+  // `kind`'s own doc comment): the row is fully clickable/real, it just
+  // always shows `emptyMessage` instead of a contact list, no favoriting
+  // concept. Swap in real `contacts`/`icon` later the same way any other
+  // group here already works, once this app has real data to back them —
+  // for now all three share the same generic `directoryCategoryIcon`
+  // (own doc comment above) per explicit request.
+  { id: "partner-network", label: "Partner Network", kind: "empty", emptyMessage: "No partner network contacts yet", icon: directoryCategoryIcon() },
+  { id: "vendor-directory", label: "Vendor Directory", kind: "empty", emptyMessage: "No vendor directory contacts yet", icon: directoryCategoryIcon() },
+  { id: "regional-offices", label: "Regional Offices", kind: "empty", emptyMessage: "No regional offices contacts yet", icon: directoryCategoryIcon() },
+  // Kept in `OUTBOUND_GROUPS` (not deleted) but hidden from the visible
+  // group list via `HIDDEN_OUTBOUND_GROUP_IDS` below — per explicit
+  // follow-up request ("keep dial pad but not customers"), Customers no
+  // longer appears as a row. Definition left intact so it can be restored
+  // by simply removing its id from that array, same as any other
+  // hide/restore case that mechanism already supports.
+  { id: "customers", label: "Customers", contacts: OUTBOUND_CUSTOMERS, icon: customerCategoryIcon() },
 ];
 
-// Group ids hidden from the "New Outbound" filter dropdown without being
+// Group ids hidden from the "New Outbound" group list without being
 // removed from `OUTBOUND_GROUPS` above — see that constant's own doc
 // comment for why. Add/remove ids here to hide/restore a group; the
-// group's own definition never needs to change. Empty for now — "dialpad"
-// was the only entry here, and per the most recent explicit request it's
-// no longer hidden from `OUTBOUND_CONFIG.groups` (see that group's own
-// updated doc comment above); it's excluded from the Select's own
-// dropdown options a different way now (lyra-ui's create-new.tsx, keyed
-// off `kind` rather than this array). Kept in place, not deleted, as the
-// general-purpose "hide a group from the dropdown without deleting it"
-// mechanism for any future group that needs it.
-export const HIDDEN_OUTBOUND_GROUP_IDS: string[] = [];
+// group's own definition never needs to change. "customers" is hidden
+// here per explicit request ("keep dial pad but not customers").
+export const HIDDEN_OUTBOUND_GROUP_IDS: string[] = ["customers"];
 
 export const OUTBOUND_CONFIG: CreateNewOutboundConfig = {
   outboundTitle: "New Outbound",
@@ -398,13 +461,17 @@ export const OUTBOUND_CONFIG: CreateNewOutboundConfig = {
   // explicit follow-up. See `CreateNewOutboundConfig.searchLabel`'s own
   // doc comment in create-new.tsx.
   searchLabel: "Enter phone, email or search term",
-  // Per explicit request: the New Outbound picker's contact list isn't
-  // ready to show yet — hide it (and its pagination footer) for every
-  // group, leaving just the group dropdown ("Choose group" — Favorites/
-  // Agents/Teams/Skills/Customers) and its search field visible above an
-  // empty body. See `CreateNewOutboundConfig.hideContactList`'s own doc
-  // comment in create-new.tsx. Remove this once the real list is ready.
-  hideContactList: true,
+  // Per a later explicit request ("display all of the agents when
+  // agents list item is clicked ... paginate ... filter as the agent
+  // searches"), the real list is ready now — idle browsing into a
+  // contacts-kind group (Agents/Skills/My Team/Customers) shows that
+  // group's FULL roster with its own pagination footer, not just
+  // already-favorited contacts. "Favorites" itself is unaffected either
+  // way — it's a distinct `kind` create-new.tsx's `activeGroupContacts`
+  // never gates on this flag (see that const's own doc comment): idle
+  // Favorites always shows only starred contacts, searching from it
+  // always searches every group, in both states of this flag.
+  hideContactList: false,
   channelOptions: [
     { id: "voice",    label: "Call",     selectLabel: "Voice", icon: <Phone       className="h-5 w-5" strokeWidth={1.5} /> },
     // Per explicit request: agents' only other reachable channel besides

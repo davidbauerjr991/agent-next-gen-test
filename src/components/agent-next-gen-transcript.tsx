@@ -1,7 +1,11 @@
-import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import React, { useState, useRef, useLayoutEffect, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import {
+  AccordionHeadless,
+  AccordionHeadlessItem,
+  AccordionHeadlessContent,
+  ContactOverview,
+  type ContactOverviewInfo,
   ChatMessage,
   ActionIconButton,
   TagPicker,
@@ -50,8 +54,6 @@ import {
   FileDown,
   Languages,
   Trash2,
-  UserCheck,
-  X,
 } from "lucide-react";
 import {
   CURRENT_AGENT_FIRST_NAME,
@@ -692,147 +694,6 @@ function TypingIndicator({
   );
 }
 
-/* ── TranscriptCustomerLinkedNote ──
-   Per explicit request: an inline card that animates into the live
-   conversation once, automatically, for EVERY interaction — see each
-   page's own `shownCustomerSummaryIds` ref + effect (keyed on
-   `activeInteraction?.id`) for exactly when it fires. (An earlier version
-   of this only fired from the explicit link/create-customer actions,
-   `handleLinkCustomerRecord`/`handleSaveNewCustomer` — corrected per
-   explicit follow-up, "I want it for ALL interactions"; those two handlers
-   still indirectly trigger it too, since both reassign
-   `activeInteraction.id` to the matched/created customer's own id, which
-   the per-page effect picks up as a brand-new id needing its own note.)
-   Mirrors a reference screenshot's "ATLAS" internal-note
-   card (an AI assistant's inline summary + dismiss chevron), rebuilt here
-   from this app's own REAL customer data (`buildCustomerInfoFields`'s
-   "Balance"/"Contact #" fields, `buildLatestInteraction`/`buildLatestNote`'s
-   own summaries — agent-next-gen-customer-info-panel.tsx, the exact same
-   helpers the Customer Information panel's Overview tab already calls) —
-   never fabricated fields like the reference's loyalty-points balance or
-   sentiment tag, which this app's data model has no equivalent for. Built
-   entirely from plain divs/lyra tokens (no lyra-ui component to compose for
-   this shape) plus one real lyra-ui atom, `ActionIconButton`, for the
-   dismiss control — per CONTRIBUTING.md's "never hand-roll a button" rule.
-   Per explicit follow-up decision ("dismiss only, no separate action"), the
-   only control besides collapse is that dismiss button — no second action
-   button, unlike the reference screenshot's implied "perform an action."
-   `animate-in fade-in-0 slide-in-from-bottom-1 fill-mode-backwards
-   duration-500` — the same entrance this file's own Marcus Webb Copilot
-   cards use (AgentWorkspace2WithDeskPage.tsx, see that component's own doc
-   comment for the full "why this exact easing/duration" reasoning), reused
-   verbatim here for the same "a card newly arriving in a running
-   conversation" effect.
-   Per explicit follow-up ("rename to just 'Summary' and have it
-   collapsable"): the header text is now plain "Summary" (this card only
-   ever appears in a customer-interaction transcript, so "Customer" was
-   redundant with the context it's already in), and the header itself is a
-   toggle button collapsing the body to just that header row — same
-   open/closed chevron pattern `TranscriptSessionDetails`'s own "View
-   Details" toggle already uses in this file (`ChevronDown` open,
-   `ChevronRight` closed), reused here for consistency rather than
-   inventing a second collapse affordance. Collapse state is local to this
-   component instance; the caller (each page's own render) keys this
-   component on `interactionId`, so a fresh instance — expanded, per this
-   component's own default — mounts for every new interaction. Combined
-   with each page's own `shownCustomerSummaryIds` effect (which only ever
-   tracks "has this note been SHOWN for this interaction", never "was it
-   dismissed/collapsed"), dismissing or collapsing this card on one
-   interaction never carries over to any other: every interaction gets its
-   own fresh, fully-expanded card the first time it becomes active. */
-export function TranscriptCustomerLinkedNote({
-  customerName,
-  initials,
-  contactNumber,
-  balance,
-  snapshotItems,
-  onDismiss,
-}: {
-  customerName: string;
-  initials: string;
-  contactNumber: string;
-  /** Omitted (not just blank) when the caller has no real balance to show
-   *  — see this component's own top doc comment for why nothing here is
-   *  ever fabricated to fill the slot. */
-  balance?: string;
-  /** Real, already-computed summaries (`buildLatestInteraction`'s
-   *  `summary`, `buildLatestNote`'s `note` — see this component's own top
-   *  doc comment) — never a placeholder string when the list is short;
-   *  an empty array simply renders no "Customer Snapshot" section at
-   *  all. */
-  snapshotItems: string[];
-  onDismiss: () => void;
-}) {
-  // Defaults open — every new interaction should land on a fully-visible
-  // summary, never a collapsed one (see this component's own top doc
-  // comment on why a fresh instance always starts here).
-  const [expanded, setExpanded] = useState(true);
-  return (
-    <div className="animate-in fade-in-0 slide-in-from-bottom-1 fill-mode-backwards duration-500 overflow-hidden rounded-lyra-md border border-lyra-border-subtle bg-lyra-bg-surface-base">
-      <div className="flex items-center justify-between gap-2 border-b border-lyra-border-subtle bg-lyra-status-success-subtle px-4 py-2.5">
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          aria-expanded={expanded}
-          className="flex min-w-0 flex-1 items-center gap-2 text-left"
-        >
-          <UserCheck className="h-4 w-4 shrink-0 text-lyra-status-success-strong" strokeWidth={1.5} aria-hidden="true" />
-          <span className="lyra-body-md-emphasis text-lyra-fg-default">Summary</span>
-          {expanded ? (
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-lyra-fg-secondary" strokeWidth={1.5} aria-hidden="true" />
-          ) : (
-            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-lyra-fg-secondary" strokeWidth={1.5} aria-hidden="true" />
-          )}
-        </button>
-        <ActionIconButton size="sm" title="Dismiss summary" onClick={onDismiss}>
-          <X className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" />
-        </ActionIconButton>
-      </div>
-      {expanded && (
-        <div className="flex flex-col gap-3 px-4 py-3">
-          <p className="lyra-body-md text-lyra-fg-default">You are now working with customer {customerName}.</p>
-          <div className="flex items-center justify-between gap-3 rounded-lyra-md border border-lyra-border-subtle bg-lyra-bg-control-subtle px-3 py-2.5">
-            <div className="flex min-w-0 items-center gap-2">
-              <span
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-lyra-bg-primary text-lyra-fg-on-primary lyra-body-sm-emphasis"
-                aria-hidden="true"
-              >
-                {initials}
-              </span>
-              <div className="flex min-w-0 flex-col">
-                <span className="lyra-body-md-emphasis text-lyra-fg-default truncate">{customerName}</span>
-                <span className="lyra-body-sm text-lyra-fg-secondary truncate">Contact #{contactNumber}</span>
-              </div>
-            </div>
-            {balance && (
-              <div className="flex shrink-0 flex-col items-end">
-                <span className="lyra-body-sm text-lyra-fg-secondary">Balance</span>
-                <span className="lyra-body-md-emphasis text-lyra-fg-default">{balance}</span>
-              </div>
-            )}
-          </div>
-          {snapshotItems.length > 0 && (
-            <div className="flex flex-col gap-1.5">
-              <span className="lyra-body-sm-emphasis text-lyra-fg-secondary">Customer Snapshot</span>
-              <ul className="flex flex-col gap-1">
-                {snapshotItems.map((item, i) => (
-                  <li key={i} className="flex items-start gap-2">
-                    <span
-                      className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-lyra-status-success-strong"
-                      aria-hidden="true"
-                    />
-                    <span className="lyra-body-sm text-lyra-fg-default">{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 /* ── TranscriptSessionDetails ──
    The "Session Details" card a session separator expands to (reference
    screenshot 2) — Contact ID/Date, Start/End, Channel/Skill, Agent/Status,
@@ -970,13 +831,13 @@ export function TranscriptSessionDetails({ session }: { session: Contact }) {
    since here the solid edge is at the *top* of the fade band, not the
    bottom.
 
-   Session Details' open/close is animated via @radix-ui/react-accordion
-   directly (AccordionPrimitive.Root/Item/Content) rather than lyra-ui's
-   own Accordion component — that component always renders its own trigger
+   Session Details' open/close is animated via lyra-ui's headless
+   accordion building blocks (AccordionHeadless/-Item/-Content, see
+   accordion.tsx) rather than the styled Accordion component — that component always renders its own trigger
    row (a full-width button with its own chevron) plus a border-b divider
    after every item, neither of which fits here: the real trigger is the
    "# CTX-..." pill button below, and this feature was explicitly built
-   with no dividers. Reusing the bare Radix primitives keeps the actual
+   with no dividers. Reusing the bare building blocks keeps the actual
    animation mechanism identical to Accordion's though — same
    data-[state=open]:animate-accordion-down data-[state=closed]:animate-
    accordion-up classes, same --radix-accordion-content-height CSS
@@ -1171,6 +1032,7 @@ export function TranscriptSessionSeparator({
   collapsed = false,
   onToggleCollapsed,
   compactHeader = false,
+  hideFade = false,
 }: {
   session: Contact;
   open: boolean;
@@ -1315,6 +1177,16 @@ export function TranscriptSessionSeparator({
    *  own width a second time. Defaults `false` — every other call site (if
    *  any are ever added) keeps the full label. */
   compactHeader?: boolean;
+  /** Suppresses this separator's own trailing bottom fade (see that div's
+   *  doc comment just below for what it normally does). Only ever needed
+   *  for a session whose FIRST piece of scrolling content underneath is
+   *  the `ContactOverview` block (`InteractionTranscript`'s own
+   *  `contactOverview` prop) — that block sits flush against this
+   *  separator, so the fade's `-bottom-8` band was painting straight over
+   *  its "Contact Overview" heading instead of just softening real
+   *  message bubbles further down. Every other session (fade landing on
+   *  actual messages, which is the whole point) leaves this `false`. */
+  hideFade?: boolean;
 }) {
   const isClosed = !isCurrentSession || !!channelClosed;
   // Local to the Outcome popover's own "Status" field — same "one popover
@@ -1325,7 +1197,7 @@ export function TranscriptSessionSeparator({
   const [outcomeResolutionMenuOpen, setOutcomeResolutionMenuOpen] = useState(false);
   const [outcomeResolutionMenuView, setOutcomeResolutionMenuView] = useState<"menu" | "confirm">("menu");
   return (
-    <AccordionPrimitive.Root
+    <AccordionHeadless
       type="single"
       collapsible
       value={open ? session.id : ""}
@@ -1355,7 +1227,7 @@ export function TranscriptSessionSeparator({
           the session information when it is open," it needed to sit below
           BOTH the collapsed row AND `Content` when expanded, i.e. at the
           bottom of the whole Item, not the row alone). */}
-      <AccordionPrimitive.Item value={session.id} className="border-b border-lyra-border-subtle">
+      <AccordionHeadlessItem value={session.id} className="border-b border-lyra-border-subtle">
         <div className="flex flex-wrap items-center justify-between gap-3 py-2">
           {/* Flat, left-aligned case info — no wrapping pill border/
               background and no flanking divider lines (per earlier design
@@ -1422,6 +1294,19 @@ export function TranscriptSessionSeparator({
               className="h-auto shrink-0 gap-1.5 p-0 hover:bg-transparent active:bg-transparent lyra-body-sm text-lyra-fg-secondary"
             >
               <span className={cn("inline-flex items-center gap-1.5", compactHeader && "hidden")}>
+                {/* Per explicit follow-up request ("add the channel type to
+                    the summary row at the left (voice, sms, webchat, chat,
+                    whatsapp, etc.)") — `session.channel` is already a real,
+                    populated display label on every `Contact` this row ever
+                    renders (`freshSessionChannelLabel`/the historical mock
+                    arrays above all set it), so this just surfaces it rather
+                    than adding a new field. Grouped inside this same
+                    collapsible span (not a separate always-visible one) so
+                    it hides together with the rest of this cluster under
+                    `compactHeader`, same reasoning as every other piece
+                    here. */}
+                <span>{session.channel}</span>
+                <span aria-hidden="true">|</span>
                 {messageCount != null && (
                   <>
                     <span>{messageCount} Message{messageCount === 1 ? "" : "s"}</span>
@@ -1891,19 +1776,31 @@ export function TranscriptSessionSeparator({
           </div>
           )}
         </div>
-        <AccordionPrimitive.Content className="overflow-hidden data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up">
+        <AccordionHeadlessContent>
           <div className="pb-4">
             <TranscriptSessionDetails session={session} />
           </div>
-        </AccordionPrimitive.Content>
-      </AccordionPrimitive.Item>
-      <div
-        className="pointer-events-none absolute inset-x-0 -bottom-8 h-8 bg-gradient-to-b from-lyra-bg-surface-base to-transparent"
-        aria-hidden="true"
-      />
-    </AccordionPrimitive.Root>
+        </AccordionHeadlessContent>
+      </AccordionHeadlessItem>
+      {!hideFade && (
+        <div
+          className="pointer-events-none absolute inset-x-0 -bottom-8 h-8 bg-gradient-to-b from-lyra-bg-surface-base to-transparent"
+          aria-hidden="true"
+        />
+      )}
+    </AccordionHeadless>
   );
 }
+
+// `ContactOverview` and its `ContactOverviewInfo` type used to live here as
+// a bespoke, hand-rolled block — promoted to lyra-ui (see this file's own
+// import from "@nicecxone/lyra-ui" above) per explicit request, both so
+// other consumers get the same component and so its expand/collapse gets a
+// real height animation (built on the same Radix accordion primitive/
+// `accordion-down`/`accordion-up` keyframes every other accordion in that
+// package already uses) instead of this file's old plain conditional
+// render. See that component's own doc comment (lyra-ui's
+// contact-overview.tsx) for the full reasoning.
 
 export function InteractionTranscript({
   channelType,
@@ -1911,6 +1808,11 @@ export function InteractionTranscript({
   contactId,
   skillLabel,
   isFreshLaunch,
+  contactOverview,
+  contactOverviewPosition,
+  onViewCustomerInfo,
+  onViewInteractionHistory,
+  onLaunchPreviousAgentInteraction,
   reopenedContacts,
   liveMessages,
   currentStatus,
@@ -1930,8 +1832,6 @@ export function InteractionTranscript({
   showSessionActionCluster = true,
   isNewThread = false,
   isCustomerTyping = false,
-  customerLinkedNote = null,
-  onDismissCustomerLinkedNote,
 }: {
   /** Which channel's content to show — see this component's own doc
    *  comment above. Undefined (no active interaction/channel yet) renders
@@ -1966,6 +1866,56 @@ export function InteractionTranscript({
    *  there's no "pre-existing conversation" for either to wrongly show in
    *  the first place. */
   isFreshLaunch: boolean;
+  /**
+   * When set, renders a `ContactOverview` block (see that component's own
+   * doc comment) right at the top of the CURRENT session's message
+   * content — the caller resolves this (prior-agent lookup, snapshot
+   * text) and only passes it for a freshly-launched contact with actual
+   * context worth surfacing; omit it (or pass `undefined`) for a genuinely
+   * first-ever, no-history contact, same channels/`isFreshLaunch` already
+   * gates the empty "Session Details" separator with — this is a SEPARATE
+   * flag, though, not derived from `isFreshLaunch` in here, since not
+   * every fresh launch has prior-agent/snapshot context to show (a
+   * brand-new customer with zero history anywhere has nothing for this to
+   * summarize).
+   */
+  contactOverview?: ContactOverviewInfo;
+  /**
+   * Overrides which of the two `ContactOverview` render spots is used —
+   * see either spot's own doc comment below for what each means. Only
+   * needed when a caller's own `isFreshLaunch` value doesn't actually
+   * match which spot its `ContactOverview` should use: the Marcus Webb
+   * scripted scenario (AgentWorkspace2WithDeskPage.tsx) sets
+   * `isFreshLaunch` for its OTHER effect (the empty "Session Details"
+   * separator a genuinely brand-new text conversation gets) even though
+   * his first message arrives instantly/scripted rather than empty — per
+   * explicit bug report, his Contact Overview still needs to land AFTER
+   * that first message, i.e. the "bottom" spot, not the "top" one
+   * `isFreshLaunch` would otherwise pick for him. Omit to fall back to
+   * the default `isFreshLaunch ? "top" : "bottom"` every other caller
+   * already gets.
+   */
+  contactOverviewPosition?: "top" | "bottom";
+  /**
+   * Forwarded straight through to the rendered `ContactOverview`'s own
+   * `onViewCustomerInfo`/`onViewInteractionHistory` props (see either
+   * one's own doc comment, contact-overview.tsx) — the caller (each page
+   * file) opens its docked Customer Information panel and jumps it to the
+   * Overview/Contacts tab respectively. `undefined` for either one hides
+   * that specific link (same as `ContactOverview` itself does), which
+   * naturally happens whenever `contactOverview` itself is unset too since
+   * neither link means anything without a panel to jump.
+   */
+  onViewCustomerInfo?: () => void;
+  onViewInteractionHistory?: () => void;
+  /**
+   * Forwarded straight through to the rendered `ContactOverview`'s own
+   * `onLaunchPreviousAgentInteraction` prop (see its own doc comment,
+   * contact-overview.tsx) — turns that block's "already been working with
+   * Agent X" name/id into a clickable link that opens a Call/Chat popover.
+   * `undefined` hides the link (same as `ContactOverview` itself does).
+   */
+  onLaunchPreviousAgentInteraction?: (channel: "voice" | "chat") => void;
   /**
    * One entry per time this channel was reopened (via "Add Channel") while
    * closed — `Interaction`'s own `Thread.reopenedContacts`,
@@ -2110,35 +2060,6 @@ export function InteractionTranscript({
    *  `false`; every existing call site is unaffected until the caller starts
    *  computing a real value. */
   isCustomerTyping?: boolean;
-  /** Per explicit request: renders a `TranscriptCustomerLinkedNote` (see
-   *  that component's own top doc comment) inline among the CURRENT
-   *  session's own live messages, once, at the position it was created —
-   *  `atLiveMessageCount` is a one-time snapshot of how many live messages
-   *  this channel already had at the moment the customer got linked
-   *  (`handleLinkCustomerRecord`/`handleSaveNewCustomer`, page-level state),
-   *  NOT re-derived every render — that's what keeps the card pinned in
-   *  its original chronological spot as the agent keeps chatting
-   *  afterward, rather than always floating to the current bottom of the
-   *  conversation. `null` (the default) renders nothing; every existing
-   *  call site is unaffected until the caller starts passing a real
-   *  value. */
-  customerLinkedNote?: {
-    /** Used only to `key` the rendered `TranscriptCustomerLinkedNote` so a
-     *  fresh, expanded/undismissed instance mounts per interaction — see
-     *  that component's own top doc comment. */
-    interactionId: string;
-    atLiveMessageCount: number;
-    customerName: string;
-    initials: string;
-    contactNumber: string;
-    balance?: string;
-    snapshotItems: string[];
-  } | null;
-  /** Fires when the agent dismisses `customerLinkedNote` above — the
-   *  caller is expected to clear its own state so the card doesn't
-   *  reappear on the next render. Only meaningful (and only ever called)
-   *  while `customerLinkedNote` is actually set. */
-  onDismissCustomerLinkedNote?: () => void;
 }) {
   // A freshly-launched Chat/SMS/WhatsApp interaction (see `isFreshLaunch`'s
   // own doc comment) shows just a single synthesized "Session Details"
@@ -2271,6 +2192,40 @@ export function InteractionTranscript({
     liveMessagesBySessionId[baseLiveMessageSessionId] = liveMessages;
   }
 
+  // Which of the two `ContactOverview` spots below actually renders it —
+  // see `contactOverviewPosition`'s own doc comment for why this isn't
+  // simply `isFreshLaunch` itself for every caller.
+  const contactOverviewAtBottom = contactOverviewPosition
+    ? contactOverviewPosition === "bottom"
+    : !isFreshLaunch;
+
+  // Per explicit follow-up bug report ("you put it above the latest
+  // interaction bubbles - it should be at the bottom"): for the transfer/
+  // existing-conversation `ContactOverview` spot (`contactOverviewAtBottom`,
+  // below), this session's own `liveMessagesBySessionId` entry can ALREADY contain
+  // pre-existing conversation content when the transcript first renders
+  // (a Contact History resume seeds its whole prior conversation through
+  // `liveMessages`, not the fixed `messages` array) — rendering
+  // `ContactOverview` before ALL of those put it above messages that were
+  // already there before the agent even opened this contact, not "at the
+  // bottom." This ref captures, once per `contactId`, exactly how many of
+  // `lastSessionId`'s live messages already existed at that first render —
+  // everything up to that count renders ABOVE `ContactOverview` (a
+  // continuation of the existing conversation), everything past it renders
+  // BELOW (genuinely new, sent/received after this pickup). Applied during
+  // render (compare against the last-seen `contactId`, same "adjust a ref
+  // when a tracked key changes" pattern `InteractionNavItem`'s own
+  // `channelsExpandedOverride` uses) rather than inside a `useEffect`, so
+  // the very first render after a contact loads already has the correct
+  // split — a `useEffect` would run one render late, letting messages that
+  // were already there sneak in below the line for one frame.
+  const lastContactOverviewBoundaryContactIdRef = useRef<string | undefined>(undefined);
+  const contactOverviewLiveMessageBoundaryRef = useRef(0);
+  if (lastContactOverviewBoundaryContactIdRef.current !== contactId) {
+    lastContactOverviewBoundaryContactIdRef.current = contactId;
+    contactOverviewLiveMessageBoundaryRef.current = (liveMessagesBySessionId[lastSessionId ?? ""] ?? []).length;
+  }
+
   // Local, per-session tag state — removing/adding a tag on one message
   // shouldn't touch any other message's tags (in this session or any
   // other), so this is keyed by session id rather than one flat array.
@@ -2305,23 +2260,7 @@ export function InteractionTranscript({
   // session that reads "Closed" ever exposes the collapse icon that flips
   // this (`TranscriptSessionSeparator`'s own `onToggleCollapsed` doc
   // comment) — a still-open session's id never lands in this set.
-  //
-  // Per explicit bug report: this used to always start empty, so a card
-  // opened straight into an already-Closed session (e.g. from Search/
-  // Contact History — no live reopen happens during THIS mount at all, it
-  // was already Closed in the seed data) rendered fully expanded with
-  // nothing to auto-collapse it, even though `getSessionStatus` already
-  // reads it as "Closed" from the very first render. Lazy-initialized from
-  // `sessionsToRender`/`lastSessionId` (both already computed above) so
-  // every session that ISN'T the current one — i.e. every session that
-  // reads "Closed" per `getSessionStatus` — starts collapsed on mount, not
-  // just ones that close later via the `prevLastSessionIdRef` effect right
-  // below. Only runs once (lazy `useState` initializer, not an effect), so
-  // it never re-fights an agent who manually re-expands a session afterward
-  // via `toggleSessionCollapsed`.
-  const [collapsedSessionIds, setCollapsedSessionIds] = useState<Set<string>>(
-    () => new Set(sessionsToRender.filter((session) => session.id !== lastSessionId).map((session) => session.id))
-  );
+  const [collapsedSessionIds, setCollapsedSessionIds] = useState<Set<string>>(new Set());
 
   const toggleSessionCollapsed = (sessionId: string) => {
     setCollapsedSessionIds((prev) => {
@@ -2332,25 +2271,27 @@ export function InteractionTranscript({
     });
   };
 
-  // Covers the other half of the same bug the lazy initializer above
-  // fixes: THIS mount is still live when a reopen happens (agent is
-  // sitting on the card when it gets superseded), so the session that just
-  // lost `lastSessionId` needs to collapse right then too, not just at
-  // mount. Tracks the previous `lastSessionId` in a ref purely to detect
-  // that one transition — comparing against `collapsedSessionIds` itself
-  // would only tell us the CURRENT collapsed set, not which session id
-  // just stopped being current. Deliberately only auto-collapses the
-  // session that just closed, not every historical session (an agent who
-  // explicitly re-expanded an old session to re-read it keeps seeing it
-  // expanded — this never fights that choice).
-  const prevLastSessionIdRef = useRef(lastSessionId);
+  // Per explicit bug fix: a contact with more than one session (multiple
+  // past, Closed threads plus the current one) used to load with EVERY
+  // session's message content expanded — `collapsedSessionIds` started out
+  // empty, so nothing was collapsed until an agent manually clicked one
+  // shut. Every session but `lastSessionId` always reads "Closed"
+  // (`getSessionStatus`, above), so on a genuinely fresh contact load
+  // (`contactId` — this prop identifies the specific channel/thread being
+  // viewed, not just the customer) every one of THOSE gets collapsed by
+  // default here, leaving only the current session's own messages visible
+  // — an agent can still re-expand any of them individually via
+  // `toggleSessionCollapsed` same as before, this only changes the
+  // starting state. Deliberately NOT included in the dependency array:
+  // `sessionsToRender`/`lastSessionId` themselves — this should fire once
+  // per contact load, not re-collapse a session the agent just re-expanded
+  // simply because a live message arrived and re-triggered a re-render.
   useEffect(() => {
-    const prevLastSessionId = prevLastSessionIdRef.current;
-    if (prevLastSessionId && prevLastSessionId !== lastSessionId) {
-      setCollapsedSessionIds((prev) => (prev.has(prevLastSessionId) ? prev : new Set(prev).add(prevLastSessionId)));
-    }
-    prevLastSessionIdRef.current = lastSessionId;
-  }, [lastSessionId]);
+    setCollapsedSessionIds(
+      new Set(sessionsToRender.filter((session) => session.id !== lastSessionId).map((session) => session.id))
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contactId]);
 
   // The CURRENT session's status is `currentStatus`, a prop from
   // `Interaction` (see its own doc comment for why) — every OTHER
@@ -2696,7 +2637,31 @@ export function InteractionTranscript({
             nearest scrolling ancestor (the `overflow-y-auto` div above),
             not against this width constraint. */}
         <div className="w-full">
-          {sessionsToRender.map((session) => {
+          {/* Per explicit request ("let's not have multiple threads in a
+              chat anymore - simply hide the ones in the existing
+              assignments"): only the CURRENT session (`lastSessionId`)
+              ever renders here now — every historical session (a past
+              `TRANSCRIPT_SESSIONS`/`_VOICE`/`_EMAIL` entry, or an earlier
+              `reopenedContacts` entry) is filtered out of the scrollable
+              transcript entirely, not just collapsed (the previous
+              behavior — see `collapsedSessionIds`' own doc comment above,
+              now dead code left in place rather than ripped out: reopening
+              a channel still needs its own fresh `Contact` object with a
+              new id for `currentStatus`/`onCurrentStatusChange` to attach
+              to, and Contact History/session-count bookkeeping elsewhere
+              still reads the full un-filtered `sessionsToRender`/
+              `liveMessagesBySessionId`, so removing the underlying
+              multi-session data model itself would be a much bigger,
+              riskier change than what was actually asked for here — a
+              purely visual hide). A single still-visible session with no
+              other one to distinguish it from reads a little oddly with a
+              full "N Messages | #contactId · date" separator bar of its
+              own still on screen, but that bar is also this session's only
+              home for its status pill/Consult/Transfer/Outcome/Unassign
+              cluster, so it stays. */}
+          {sessionsToRender
+            .filter((session) => session.id === lastSessionId)
+            .map((session) => {
             // Falls back to `[]` for the synthetic "just launched" session
             // (not seeded into `sessionMessages` at mount, since it isn't
             // part of the fixed `TRANSCRIPT_SESSIONS` array that seeds that
@@ -2736,6 +2701,11 @@ export function InteractionTranscript({
                     className now instead — see that component's own doc
                     comment. */}
                 <TranscriptSessionSeparator
+                  // Per explicit bug fix — this separator's own trailing
+                  // fade otherwise paints straight over the `ContactOverview`
+                  // block's heading when it's the first thing rendered
+                  // right underneath (see `hideFade`'s own doc comment).
+                  hideFade={!!contactOverview && session.id === lastSessionId}
                   session={sessionWithCurrentStatus}
                   open={openSessionIds.has(session.id)}
                   onToggle={() => toggleSession(session.id)}
@@ -2878,7 +2848,7 @@ export function InteractionTranscript({
                     accordion-down`/`data-[state=closed]:animate-accordion-up`
                     mechanism `TranscriptSessionSeparator`'s own Session
                     Details panel already uses, a wholly separate/independent
-                    `AccordionPrimitive` instance from that one (this session's
+                    `AccordionHeadless` instance from that one (this session's
                     "Session Details" open/closed state and its "message
                     content collapsed" state are unrelated flags — see
                     `TranscriptSessionSeparator`'s own `collapsed` prop doc
@@ -2892,14 +2862,14 @@ export function InteractionTranscript({
                     working exactly as already documented there (a fully
                     collapsed session legitimately has nothing left to stick
                     through, which is the correct behavior here). */}
-                <AccordionPrimitive.Root
+                <AccordionHeadless
                   type="single"
                   collapsible
                   value={collapsedSessionIds.has(session.id) ? "" : session.id}
                   onValueChange={() => {}}
                 >
-                <AccordionPrimitive.Item value={session.id} className="border-none">
-                <AccordionPrimitive.Content className="overflow-hidden data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up">
+                <AccordionHeadlessItem value={session.id} className="border-none">
+                <AccordionHeadlessContent>
                 <div
                   // `max-w-[1024px]` — per explicit request, narrowed down
                   // from the previous 1200px (see this wrapper's own
@@ -2914,6 +2884,39 @@ export function InteractionTranscript({
                     session.id === lastSessionId && "pb-9"
                   )}
                 >
+                {/* Only on the CURRENT session — see `contactOverview`'s own
+                    doc comment above; a reopened/historical session under
+                    this same channel already has real messages of its own,
+                    not a fresh-launch moment to summarize.
+                    `contactOverviewAtBottom` additionally gates WHICH of the
+                    two spots below actually renders it (per explicit
+                    request): a genuinely brand-new, empty conversation
+                    shows it up here, first thing the agent reads before
+                    anything else exists to read. A channel that was picked
+                    up already carrying a conversation — a transfer, or any
+                    other "existing conversation" case the bottom spot
+                    covers (this app has no separate transferred flag; a
+                    transferred-in channel looks identical to a resumed
+                    one, some pre-existing messages already sitting on it —
+                    see `contactOverviewPosition`'s own doc comment for the
+                    one scripted exception, Marcus Webb, that still needs
+                    the bottom spot despite `isFreshLaunch` reading `true`
+                    for him) — shows it at the OTHER spot instead, just
+                    above the live-messages block below, so the agent reads
+                    the existing history first and this summary lands right
+                    where their own new messages are about to continue
+                    from. */}
+                {contactOverview && session.id === lastSessionId && !contactOverviewAtBottom && (
+                  <ContactOverview
+                    customerName={displayName}
+                    previousAgent={contactOverview.previousAgent}
+                    snapshot={contactOverview.snapshot}
+                    journeySummary={contactOverview.journeySummary}
+                    onViewCustomerInfo={onViewCustomerInfo}
+                    onViewInteractionHistory={onViewInteractionHistory}
+                    onLaunchPreviousAgentInteraction={onLaunchPreviousAgentInteraction}
+                  />
+                )}
                 {messages.length > 0 && (
                   <div className="flex min-w-0 flex-col gap-5 py-4">
                     {messages.map((message) => (
@@ -2985,83 +2988,87 @@ export function InteractionTranscript({
                     "sticky for existing conversations but new conversations
                     ... when the conversation reaches an overflow-y it is
                     not sticky"). */}
+                {/* The OTHER `ContactOverview` spot — see the doc comment on
+                    its sibling occurrence above this session's `messages`
+                    block for the full "which of the two spots" reasoning.
+                    This one covers a transfer/existing-conversation pickup
+                    (`contactOverviewAtBottom`): it renders AFTER this session's own
+                    existing message history — the `messages.map(...)`/
+                    Voice-Email-placeholder blocks above AND the "already
+                    existed" slice of live messages just below (see
+                    `contactOverviewLiveMessageBoundaryRef`'s own doc
+                    comment for why live messages need their own split
+                    here too) — and BEFORE the "new" slice, so it reads as
+                    the boundary between "what already happened on this
+                    conversation" and "what the agent sends from here." */}
                 {(() => {
                   const sessionLiveMessages = liveMessagesBySessionId[session.id] ?? [];
+                  const isNonFreshOverviewSession =
+                    !!contactOverview && session.id === lastSessionId && contactOverviewAtBottom;
+                  const existingLiveMessages = isNonFreshOverviewSession
+                    ? sessionLiveMessages.slice(0, contactOverviewLiveMessageBoundaryRef.current)
+                    : sessionLiveMessages;
+                  const newLiveMessages = isNonFreshOverviewSession
+                    ? sessionLiveMessages.slice(contactOverviewLiveMessageBoundaryRef.current)
+                    : [];
                   // Only the CURRENT session's own trailing edge — see
                   // `isCustomerTyping`'s own doc comment above for the full
                   // `lastSessionId`/`isTextChannel` scoping reasoning.
                   const showTypingIndicator = session.id === lastSessionId && isTextChannel && isCustomerTyping;
-                  // `customerLinkedNote` only ever belongs to the CURRENT
-                  // session — see that prop's own doc comment above for why
-                  // `atLiveMessageCount` is a one-time snapshot rather than
-                  // something re-derived every render. `null` (not just
-                  // "index past the end") for every OTHER session so an
-                  // older/closed session never renders it. `noteIndex` is
-                  // clamped to this session's actual live-message count in
-                  // case a caller-side bug ever hands this a stale, too-
-                  // large value — an unclamped index would silently render
-                  // nothing at all (neither the `=== idx` branch inside the
-                  // map below, since no such index exists, nor the trailing
-                  // fallback, since a too-large number would never equal
-                  // `sessionLiveMessages.length` either).
-                  const noteIndex =
-                    session.id === lastSessionId && customerLinkedNote
-                      ? Math.min(customerLinkedNote.atLiveMessageCount, sessionLiveMessages.length)
-                      : null;
-                  const note = noteIndex !== null && customerLinkedNote ? (
-                    <TranscriptCustomerLinkedNote
-                      // Keyed on the interaction it belongs to so a brand-
-                      // new instance — expanded, undismissed — mounts for
-                      // every interaction; see this component's own top
-                      // doc comment for why dismiss/collapse state must
-                      // never carry over between interactions.
-                      key={customerLinkedNote.interactionId}
-                      customerName={customerLinkedNote.customerName}
-                      initials={customerLinkedNote.initials}
-                      contactNumber={customerLinkedNote.contactNumber}
-                      balance={customerLinkedNote.balance}
-                      snapshotItems={customerLinkedNote.snapshotItems}
-                      onDismiss={() => onDismissCustomerLinkedNote?.()}
+                  const renderBubble = (message: TranscriptMessage) => (
+                    <TranscriptMessageBubble
+                      key={message.id}
+                      message={{
+                        ...message,
+                        ...(message.sender === "customer" ? { name: displayName, initials: displayInitials } : {}),
+                        tags: liveMessageTags[message.id] ?? message.tags,
+                      }}
+                      tagPickerOpen={tagPickerOpenId === message.id}
+                      onTagPickerOpenChange={(open) => setTagPickerOpenId(open ? message.id : null)}
+                      onAddTag={(option) => addLiveTag(message.id, option)}
+                      onRemoveTag={(tagId) => removeLiveTag(message.id, tagId)}
+                      onClearTags={() => clearLiveTags(message.id)}
+                      onCopy={() => copyMessage(message.text)}
+                      narrow={transcriptNarrow}
                     />
-                  ) : null;
+                  );
                   return (
-                    (sessionLiveMessages.length > 0 || showTypingIndicator || note) && (
-                      <div className="flex flex-col gap-5 py-4">
-                        {sessionLiveMessages.map((message, index) => (
-                          <React.Fragment key={message.id}>
-                            {noteIndex === index && note}
-                            <TranscriptMessageBubble
-                              message={{
-                                ...message,
-                                ...(message.sender === "customer" ? { name: displayName, initials: displayInitials } : {}),
-                                tags: liveMessageTags[message.id] ?? message.tags,
-                              }}
-                              tagPickerOpen={tagPickerOpenId === message.id}
-                              onTagPickerOpenChange={(open) => setTagPickerOpenId(open ? message.id : null)}
-                              onAddTag={(option) => addLiveTag(message.id, option)}
-                              onRemoveTag={(tagId) => removeLiveTag(message.id, tagId)}
-                              onClearTags={() => clearLiveTags(message.id)}
-                              onCopy={() => copyMessage(message.text)}
+                    <>
+                      {existingLiveMessages.length > 0 && (
+                        <div className="flex flex-col gap-5 py-4">
+                          {existingLiveMessages.map(renderBubble)}
+                        </div>
+                      )}
+                      {isNonFreshOverviewSession && contactOverview && (
+                        <ContactOverview
+                          customerName={displayName}
+                          previousAgent={contactOverview.previousAgent}
+                          snapshot={contactOverview.snapshot}
+                          journeySummary={contactOverview.journeySummary}
+                          onViewCustomerInfo={onViewCustomerInfo}
+                          onViewInteractionHistory={onViewInteractionHistory}
+                          onLaunchPreviousAgentInteraction={onLaunchPreviousAgentInteraction}
+                        />
+                      )}
+                      {(newLiveMessages.length > 0 || showTypingIndicator) && (
+                        <div className="flex flex-col gap-5 py-4">
+                          {newLiveMessages.map(renderBubble)}
+                          {showTypingIndicator && (
+                            <TypingIndicator
+                              initials={displayInitials}
                               narrow={transcriptNarrow}
+                              bubbleFullWidth={transcriptBubbleFullWidth}
                             />
-                          </React.Fragment>
-                        ))}
-                        {noteIndex === sessionLiveMessages.length && note}
-                        {showTypingIndicator && (
-                          <TypingIndicator
-                            initials={displayInitials}
-                            narrow={transcriptNarrow}
-                            bubbleFullWidth={transcriptBubbleFullWidth}
-                          />
-                        )}
-                      </div>
-                    )
+                          )}
+                        </div>
+                      )}
+                    </>
                   );
                 })()}
                 </div>
-                </AccordionPrimitive.Content>
-                </AccordionPrimitive.Item>
-                </AccordionPrimitive.Root>
+                </AccordionHeadlessContent>
+                </AccordionHeadlessItem>
+                </AccordionHeadless>
               </div>
             );
           })}
